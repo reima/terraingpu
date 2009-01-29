@@ -1,0 +1,16 @@
+*.bak
+*~
+Debug
+Release
+Profile
+doc
+*.exe
+*.suo
+*.pdb
+*.ncb
+*.obj
+*.dep
+*.pch
+*.zip
+*.user
+Thumbs.db

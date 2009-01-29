@@ -8,6 +8,14 @@ cbuffer cb0 {
   float4x4 g_mWorldViewProj;
 }
 
+cbuffer cb1 {
+  float VoxelDim = 33;
+  float VoxelDimMinusOne = 32;
+  float BlockSize = 2.0;
+  float2 InvVoxelDim = float2(1.0/33.0, 0);
+  float2 InvVoxelDimMinusOne = float2(1.0/32.0, 0);
+}
+
 struct VS_DENSITY_INPUT {
   float2 Position   : POSITION;
   float2 Tex        : TEXCOORD;
@@ -31,8 +39,8 @@ struct GS_DENSITY_OUTPUT {
 VS_DENSITY_OUTPUT Density_VS(VS_DENSITY_INPUT Input) {
   VS_DENSITY_OUTPUT Output;
   Output.Position = float4(Input.Position.xy, 0.5, 1);
-  Output.BlockPosition = float3(Input.Tex.xy, Input.InstanceID / 32.0);
-  Output.WorldPosition = float4(Output.BlockPosition/* + g_vBlockPosition*/, 1);
+  Output.BlockPosition = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimMinusOne.x);
+  Output.WorldPosition = float4(Output.BlockPosition*BlockSize/* + g_vBlockPosition*/, 1);
   Output.InstanceID = Input.InstanceID;
   return Output;
 }

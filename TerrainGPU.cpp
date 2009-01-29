@@ -23,7 +23,7 @@ ID3D10Buffer *g_pBlockTrisVB;
 ID3D10InputLayout *g_pBlockTrisIL;
 
 UINT g_uiWidth, g_uiHeight;
-CModelViewerCamera g_Camera;
+CFirstPersonCamera g_Camera;
 
 void RenderDensityVolume(ID3D10Device *pd3dDevice) {
   D3D10_VIEWPORT viewport;
@@ -186,15 +186,15 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   // Set up per-block voxel vertex buffer and input layout
   {
-    UINT voxels[32*32][2];
+    float voxels[32*32][2];
     for (UINT i = 0; i < 32; ++i) {
       for (UINT j = 0; j < 32; ++j) {
-        voxels[i+j*32][0] = i;
-        voxels[i+j*32][1] = j;
+        voxels[i+j*32][0] = i/32.0f;
+        voxels[i+j*32][1] = j/32.0f;
       }
     }
     D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = 32*32*2*sizeof(UINT);
+    buffer_desc.ByteWidth = 32*32*2*sizeof(float);
     buffer_desc.Usage = D3D10_USAGE_IMMUTABLE;
     buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
     buffer_desc.CPUAccessFlags = 0;
@@ -206,7 +206,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
     V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc, &init_data, &g_pBlockVoxelsVB));
 
     D3D10_INPUT_ELEMENT_DESC input_elements[] = {
-      { "POSITION", 0, DXGI_FORMAT_R32G32_UINT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },    
+      { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },    
     };
     UINT num_elements = sizeof(input_elements)/sizeof(input_elements[0]);
     D3D10_PASS_DESC pass_desc;
@@ -239,7 +239,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   }
 
   D3DXVECTOR3 eye(0.5f, 0.5f, -2);
-  D3DXVECTOR3 lookat(1.0f, 1.0f, 1.0f);
+  D3DXVECTOR3 lookat(0.5f, 0.5f, 0.5f);
   g_Camera.SetViewParams(&eye, &lookat);
 
   return S_OK;
@@ -295,7 +295,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   pd3dDevice->ClearRenderTargetView( DXUTGetD3D10RenderTargetView(), ClearColor );
   pd3dDevice->ClearDepthStencilView( DXUTGetD3D10DepthStencilView(), D3D10_CLEAR_DEPTH, 1.0, 0 );
 
-  D3DXMATRIX world_view_proj = *g_Camera.GetWorldMatrix() *
+  D3DXMATRIX world_view_proj = /**g_Camera.GetWorldMatrix() **/
                                *g_Camera.GetViewMatrix() *
                                *g_Camera.GetProjMatrix();
   g_pWorldViewProjEV->SetMatrix(world_view_proj);

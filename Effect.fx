@@ -11,7 +11,7 @@ cbuffer cb0 {
 cbuffer cb1 {
   float VoxelDim = 33;
   float VoxelDimMinusOne = 32;
-  float BlockSize = 2.0;
+  float BlockSize = 1.0;
   float2 InvVoxelDim = float2(1.0/33.0, 0);
   float2 InvVoxelDimMinusOne = float2(1.0/32.0, 0);
 }
@@ -65,13 +65,13 @@ float Density_PS(GS_DENSITY_OUTPUT Input) : SV_Target {
 
 
 struct VS_GENTRIS_INPUT {
-  uint2 Position   : POSITION;
-  uint  InstanceID : SV_InstanceID;
+  float2 Position   : POSITION;
+  uint   InstanceID : SV_InstanceID;
 };
 
 struct VS_GENTRIS_OUTPUT {
-  int3 Position   : POSITION;
-  uint  Case       : CASE;
+  float3 Position   : POSITION;
+  uint   Case       : CASE;
 };
 
 struct GS_GENTRIS_OUTPUT {
@@ -81,18 +81,33 @@ struct GS_GENTRIS_OUTPUT {
 
 Texture3D g_tDensityVolume;
 
+SamplerState ssNearestClamp {
+  AddressU = CLAMP;
+  AddressV = CLAMP;
+  AddressW = CLAMP;
+  Filter = MIN_MAG_MIP_POINT;
+};
+
+SamplerState ssTrilinearClamp {
+  AddressU = CLAMP;
+  AddressV = CLAMP;
+  AddressW = CLAMP;
+  Filter = MIN_MAG_MIP_LINEAR;
+};
+
+
 VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
-  int4 corner = int4(Input.Position.xy, Input.InstanceID, 0);
+  float3 uvw = float3(Input.Position.xy, Input.InstanceID * InvVoxelDimMinusOne.x);
   float4 density0123;
   float4 density4567;
-  density0123.x = g_tDensityVolume.Load(corner, int3(0, 0, 0));
-  density0123.y = g_tDensityVolume.Load(corner, int3(0, 1, 0));
-  density0123.z = g_tDensityVolume.Load(corner, int3(1, 1, 0));
-  density0123.w = g_tDensityVolume.Load(corner, int3(1, 0, 0));
-  density4567.x = g_tDensityVolume.Load(corner, int3(0, 0, 1));
-  density4567.y = g_tDensityVolume.Load(corner, int3(0, 1, 1));
-  density4567.z = g_tDensityVolume.Load(corner, int3(1, 1, 1));
-  density4567.w = g_tDensityVolume.Load(corner, int3(1, 0, 1));
+  density0123.x = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.yyy, 0);
+  density0123.y = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.yxy, 0);
+  density0123.z = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.xxy, 0);
+  density0123.w = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.xyy, 0);
+  density4567.x = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.yyx, 0);
+  density4567.y = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.yxx, 0);
+  density4567.z = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.xxx, 0);
+  density4567.w = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.xyx, 0);
 
   uint4 i0123 = (uint4)saturate(density0123*99999);
   uint4 i4567 = (uint4)saturate(density4567*99999);
@@ -100,27 +115,28 @@ VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
   VS_GENTRIS_OUTPUT Output;
   Output.Case = (i0123.x << 0) | (i0123.y << 1) | (i0123.z << 2) | (i0123.w << 3) |
                 (i4567.x << 4) | (i4567.y << 5) | (i4567.z << 6) | (i4567.w << 7);
-  Output.Position = corner.xyz;  
+  Output.Position = uvw;
 
   return Output;
 }
 
-float3 GetVertexFromEdge(int3 pos, int edge) {
-  float d1 = g_tDensityVolume.Load(int4(pos+edgeStartCorner[edge], 0));
-  float d2 = g_tDensityVolume.Load(int4(pos+edgeStartCorner[edge]+edgeDirection[edge], 0));
-  return pos + edgeStartCorner[edge] + (d1/(d1-d2))*edgeDirection[edge];
+float3 GetVertexFromEdge(float3 pos, int edge) {
+  float d1 = g_tDensityVolume.SampleLevel(ssNearestClamp, pos + edgeStartCorner[edge] * InvVoxelDimMinusOne.x, 0);
+  float d2 = g_tDensityVolume.SampleLevel(ssNearestClamp, pos + (edgeStartCorner[edge] + edgeDirection[edge]) * InvVoxelDimMinusOne.x, 0);
+  return pos + (edgeStartCorner[edge] + (d1/(d1-d2))*edgeDirection[edge]) * InvVoxelDimMinusOne.x;
 }
 
-GS_GENTRIS_OUTPUT ladida(int3 pos, int edge, float cubesize) {
+GS_GENTRIS_OUTPUT ladida(float3 pos, int edge) {
   GS_GENTRIS_OUTPUT Output;
-  Output.Position = GetVertexFromEdge(pos, edge)*cubesize;
+  float3 bsPos = GetVertexFromEdge(pos, edge);
+  Output.Position = GetVertexFromEdge(pos, edge) * BlockSize;
   float3 grad;
-  grad.x = g_tDensityVolume.Load(int4(pos + int3( 1, 0, 0), 0)) -
-           g_tDensityVolume.Load(int4(pos + int3(-1, 0, 0), 0));
-  grad.y = g_tDensityVolume.Load(int4(pos + int3( 0, 1, 0), 0)) -
-           g_tDensityVolume.Load(int4(pos + int3( 0,-1, 0), 0));
-  grad.z = g_tDensityVolume.Load(int4(pos + int3( 0, 0, 1), 0)) -
-           g_tDensityVolume.Load(int4(pos + int3( 0, 0,-1), 0));
+  grad.x = g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos + InvVoxelDimMinusOne.xyy, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos - InvVoxelDimMinusOne.xyy, 0);
+  grad.y = g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos + InvVoxelDimMinusOne.yxy, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos - InvVoxelDimMinusOne.yxy, 0);
+  grad.z = g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos + InvVoxelDimMinusOne.yyx, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos - InvVoxelDimMinusOne.yyx, 0);
   Output.Normal = -normalize(grad);
   return Output;
 }
@@ -129,12 +145,11 @@ GS_GENTRIS_OUTPUT ladida(int3 pos, int edge, float cubesize) {
 void GenTris_GS(point VS_GENTRIS_OUTPUT Input[1],
                 inout TriangleStream<GS_GENTRIS_OUTPUT> Stream) {
   const uint nTris = numTris[Input[0].Case];
-  const float3 cubesize = float3(1.0/32, 1.0/32, 1.0/32);
   for (uint i = 0; i < nTris; ++i) {
     const int3 edges = triTable[Input[0].Case][i];
-    Stream.Append(ladida(Input[0].Position, edges.x, cubesize));
-    Stream.Append(ladida(Input[0].Position, edges.y, cubesize));
-    Stream.Append(ladida(Input[0].Position, edges.z, cubesize));    
+    Stream.Append(ladida(Input[0].Position, edges.x));
+    Stream.Append(ladida(Input[0].Position, edges.y));
+    Stream.Append(ladida(Input[0].Position, edges.z));    
     Stream.RestartStrip();
   }  
 }

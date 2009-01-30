@@ -9,15 +9,15 @@ cbuffer cb0 {
 }
 
 cbuffer cb1 {
-  uint VoxelDim = 17;
-  uint VoxelDimMinusOne = 16;
-  float2 InvVoxelDim = float2(1.0/17.0, 0);
-  float2 InvVoxelDimMinusOne = float2(1.0/16.0, 0);
-  uint Margin = 4;
-  uint VoxelDimPlusMargins = 25;
-  uint VoxelDimPlusMarginsMinusOne = 24;
-  float2 InvVoxelDimPlusMargins = float2(1.0/25.0, 0);
-  float2 InvVoxelDimPlusMarginsMinusOne = float2(1.0/24.0, 0);
+  uint VoxelDim = 33;
+  uint VoxelDimMinusOne = 32;
+  float2 InvVoxelDim = float2(1.0/33.0, 0);
+  float2 InvVoxelDimMinusOne = float2(1.0/32.0, 0);
+  uint Margin = 2;
+  uint VoxelDimPlusMargins = 37;
+  uint VoxelDimPlusMarginsMinusOne = 36;
+  float2 InvVoxelDimPlusMargins = float2(1.0/37.0, 0);
+  float2 InvVoxelDimPlusMarginsMinusOne = float2(1.0/36.0, 0);
   float BlockSize = 1.0;
 }
 
@@ -173,14 +173,14 @@ DepthStencilState dssDisableDepthStencil {
 };
 
 technique10 GenBlock {
-  pass P0 {
+  pass build_densities {
     SetVertexShader(CompileShader(vs_4_0, Density_VS()));
     SetGeometryShader(CompileShader(gs_4_0, Density_GS()));
     SetPixelShader(CompileShader(ps_4_0, Density_PS()));
     SetDepthStencilState(dssDisableDepthStencil, 0);
     SetRasterizerState(NULL);
   }
-  pass P1 {
+  pass gen_vertices {
     SetVertexShader(CompileShader(vs_4_0, GenTris_VS()));
     SetGeometryShader(ConstructGSWithSO(CompileShader(gs_4_0, GenTris_GS()), "POSITION.xyz; NORMAL.xyz"));
     SetPixelShader(NULL);

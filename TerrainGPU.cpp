@@ -5,19 +5,17 @@
 #include "DXUTcamera.h"
 #include <sstream>
 
-const UINT g_VoxelDim = 17;
-const UINT g_VoxelDimMinusOne = 16;
-const float g_InvVoxelDim = 1.0f/17.0f;
-const float g_InvVoxelDimMinusOne = 1.0f/16.0f;
-const UINT g_Margin = 4;
-const UINT g_VoxelDimWithMargins = 25;
-const UINT g_VoxelDimWithMarginsMinusOne = 24;
+const UINT g_VoxelDim = 33;
+const UINT g_VoxelDimMinusOne = g_VoxelDim-1;
+const float g_InvVoxelDim = 1.0f/g_VoxelDim;
+const float g_InvVoxelDimMinusOne = 1.0f/g_VoxelDimMinusOne;
+const UINT g_Margin = 2;
+const UINT g_VoxelDimWithMargins = g_VoxelDim+2*g_Margin;
+const UINT g_VoxelDimWithMarginsMinusOne = g_VoxelDimWithMargins-1;
 
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
 ID3D10EffectVectorVariable *g_pBlockOffsetEV;
-
-D3DXVECTOR3 g_BlockOffset(0, 0, 0);
 
 ID3D10Buffer *g_pScreenAlignedQuadVB;
 ID3D10InputLayout *g_pScreenAlignedQuadIL;
@@ -30,7 +28,12 @@ ID3D10EffectShaderResourceVariable *g_pDensitySRVar;
 ID3D10Buffer *g_pBlockVoxelsVB;
 ID3D10InputLayout *g_pBlockVoxelsIL;
 
-ID3D10Buffer *g_pBlockTrisVB;
+struct BLOCK {
+  ID3D10Buffer *pBlockTrisVB;
+  D3DXVECTOR3 vBlockOffset;
+};
+const int NUM_BLOCKS = 8;
+BLOCK blocks[NUM_BLOCKS];
 ID3D10InputLayout *g_pBlockTrisIL;
 
 UINT g_uiWidth, g_uiHeight;
@@ -57,13 +60,13 @@ void RenderDensityVolume(ID3D10Device *pd3dDevice) {
   pd3dDevice->DrawInstanced(4, g_VoxelDimWithMargins, 0, 0);
 }
 
-void GenTris(ID3D10Device *pd3dDevice) {
+void GenTris(ID3D10Device *pd3dDevice, ID3D10Buffer *pTrisVB) {
   UINT strides = sizeof(UINT)*2;
   UINT offsets = 0;
   pd3dDevice->IASetVertexBuffers(0, 1, &g_pBlockVoxelsVB, &strides, &offsets);
   pd3dDevice->IASetInputLayout(g_pBlockVoxelsIL);
   pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
-  pd3dDevice->SOSetTargets(1, &g_pBlockTrisVB, &offsets);
+  pd3dDevice->SOSetTargets(1, &pTrisVB, &offsets);
   pd3dDevice->OMSetRenderTargets(0, NULL, NULL);
 
   g_pDensitySRVar->SetResource(g_pDensitySRView);
@@ -79,10 +82,16 @@ void GenTris(ID3D10Device *pd3dDevice) {
   g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0);
 }
 
-void RenderBlock(ID3D10Device *pd3dDevice, ID3D10Buffer *pBlockVB) {
+void CreateBlock(ID3D10Device *pd3dDevice, BLOCK *block) {
+  g_pBlockOffsetEV->SetFloatVector(block->vBlockOffset);
+  RenderDensityVolume(pd3dDevice);
+  GenTris(pd3dDevice, block->pBlockTrisVB);
+}
+
+void RenderBlock(ID3D10Device *pd3dDevice, const BLOCK &block) {
   UINT strides = sizeof(D3DXVECTOR3)*2;
   UINT offsets = 0;
-  pd3dDevice->IASetVertexBuffers(0, 1, &pBlockVB, &strides, &offsets);
+  pd3dDevice->IASetVertexBuffers(0, 1, &block.pBlockTrisVB, &strides, &offsets);
   pd3dDevice->IASetInputLayout(g_pBlockTrisIL);
   pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -236,7 +245,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
     buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
     buffer_desc.CPUAccessFlags = 0;
     buffer_desc.MiscFlags = 0;
-    V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc, NULL, &g_pBlockTrisVB));
+    for (int i = 0; i < NUM_BLOCKS; ++i) {
+      V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc, NULL, &blocks[i].pBlockTrisVB));
+    }
 
     D3D10_INPUT_ELEMENT_DESC input_elements[] = {
       { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
@@ -254,6 +265,19 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   D3DXVECTOR3 lookat(0.5f, 0.5f, 0.5f);
   g_Camera.SetViewParams(&eye, &lookat);
   g_Camera.SetScalers(0.01f, 2.0f);
+
+  blocks[0].vBlockOffset = D3DXVECTOR3(0, 0, 0);
+  blocks[1].vBlockOffset = D3DXVECTOR3(-1, 0, 0);
+  blocks[2].vBlockOffset = D3DXVECTOR3(0, 0, -1);
+  blocks[3].vBlockOffset = D3DXVECTOR3(-1, 0, -1);
+  blocks[4].vBlockOffset = D3DXVECTOR3(0, -1, 0);
+  blocks[5].vBlockOffset = D3DXVECTOR3(-1, -1, 0);
+  blocks[6].vBlockOffset = D3DXVECTOR3(0, -1, -1);
+  blocks[7].vBlockOffset = D3DXVECTOR3(-1, -1, -1);
+
+  for (int i = 0; i < NUM_BLOCKS; ++i) {
+    CreateBlock(pd3dDevice, &blocks[i]);
+  }
 
   return S_OK;
 }
@@ -289,9 +313,6 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float fElapsedTime, void* pUserContext )
 {
-  RenderDensityVolume(pd3dDevice);
-  GenTris(pd3dDevice);
-
   ID3D10RenderTargetView *rtv = DXUTGetD3D10RenderTargetView();
   ID3D10DepthStencilView *dsv = DXUTGetD3D10DepthStencilView();
   pd3dDevice->OMSetRenderTargets(1, &rtv, dsv);
@@ -312,9 +333,10 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
                                *g_Camera.GetViewMatrix() *
                                *g_Camera.GetProjMatrix();
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
-  g_pBlockOffsetEV->SetFloatVector(g_BlockOffset);
 
-  RenderBlock(pd3dDevice, g_pBlockTrisVB);
+  for (int i = 0; i < NUM_BLOCKS; ++i) {
+    RenderBlock(pd3dDevice, blocks[i]);
+  }
 }
 
 
@@ -338,7 +360,9 @@ void CALLBACK OnD3D10DestroyDevice( void* pUserContext )
   SAFE_RELEASE(g_pScreenAlignedQuadIL);
   SAFE_RELEASE(g_pBlockVoxelsVB);
   SAFE_RELEASE(g_pBlockVoxelsIL);
-  SAFE_RELEASE(g_pBlockTrisVB);
+  for (int i = 0; i < NUM_BLOCKS; ++i) {
+    SAFE_RELEASE(blocks[i].pBlockTrisVB);
+  }
   SAFE_RELEASE(g_pBlockTrisIL);
   SAFE_RELEASE(g_pEffect);
 }
@@ -360,15 +384,6 @@ LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 //--------------------------------------------------------------------------------------
 void CALLBACK OnKeyboard( UINT nChar, bool bKeyDown, bool bAltDown, void* pUserContext )
 {
-  if (!bKeyDown) return;
-  switch (nChar) {
-    case 'J': g_BlockOffset.x -= g_InvVoxelDimMinusOne; break;
-    case 'L': g_BlockOffset.x += g_InvVoxelDimMinusOne; break;
-    case 'K': g_BlockOffset.y -= g_InvVoxelDimMinusOne; break;
-    case 'I': g_BlockOffset.y += g_InvVoxelDimMinusOne; break;
-    case 'U': g_BlockOffset.z -= g_InvVoxelDimMinusOne; break;
-    case 'O': g_BlockOffset.z += g_InvVoxelDimMinusOne; break;
-  };
 }
 
 
@@ -432,5 +447,3 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
 
     return DXUTGetExitCode();
 }
-
-

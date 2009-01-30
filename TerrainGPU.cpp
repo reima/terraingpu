@@ -15,6 +15,7 @@ const UINT g_VoxelDimWithMarginsMinusOne = g_VoxelDimWithMargins-1;
 
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
+ID3D10EffectVectorVariable *g_pCamPosEV;
 ID3D10EffectVectorVariable *g_pBlockOffsetEV;
 
 ID3D10Buffer *g_pScreenAlignedQuadVB;
@@ -32,7 +33,7 @@ struct BLOCK {
   ID3D10Buffer *pBlockTrisVB;
   D3DXVECTOR3 vBlockOffset;
 };
-const int NUM_BLOCKS = 8;
+const int NUM_BLOCKS = 2;
 BLOCK blocks[NUM_BLOCKS];
 ID3D10InputLayout *g_pBlockTrisIL;
 
@@ -141,6 +142,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   }
 
   g_pWorldViewProjEV = g_pEffect->GetVariableByName("g_mWorldViewProj")->AsMatrix();
+  g_pCamPosEV = g_pEffect->GetVariableByName("g_vCamPos")->AsVector();
   g_pBlockOffsetEV = g_pEffect->GetVariableByName("g_vBlockOffset")->AsVector();
 
   // Create density volume texture (including views)
@@ -266,14 +268,14 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_Camera.SetViewParams(&eye, &lookat);
   g_Camera.SetScalers(0.01f, 2.0f);
 
-  blocks[0].vBlockOffset = D3DXVECTOR3(0, 0, 0);
-  blocks[1].vBlockOffset = D3DXVECTOR3(-1, 0, 0);
-  blocks[2].vBlockOffset = D3DXVECTOR3(0, 0, -1);
-  blocks[3].vBlockOffset = D3DXVECTOR3(-1, 0, -1);
-  blocks[4].vBlockOffset = D3DXVECTOR3(0, -1, 0);
-  blocks[5].vBlockOffset = D3DXVECTOR3(-1, -1, 0);
-  blocks[6].vBlockOffset = D3DXVECTOR3(0, -1, -1);
-  blocks[7].vBlockOffset = D3DXVECTOR3(-1, -1, -1);
+  blocks[0].vBlockOffset = D3DXVECTOR3(-0.5f, -0.5f, -0.5f);
+  blocks[1].vBlockOffset = D3DXVECTOR3(-1.5f, -0.5f, -0.5f);
+  //blocks[2].vBlockOffset = D3DXVECTOR3(-0.5f, -0.5f, -1.5f);
+  //blocks[3].vBlockOffset = D3DXVECTOR3(-1.5f, -0.5f, -1.5f);
+  //blocks[4].vBlockOffset = D3DXVECTOR3(0, -1, 0);
+  //blocks[5].vBlockOffset = D3DXVECTOR3(-1, -1, 0);
+  //blocks[6].vBlockOffset = D3DXVECTOR3(0, -1, -1);
+  //blocks[7].vBlockOffset = D3DXVECTOR3(-1, -1, -1);
 
   for (int i = 0; i < NUM_BLOCKS; ++i) {
     CreateBlock(pd3dDevice, &blocks[i]);
@@ -333,6 +335,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
                                *g_Camera.GetViewMatrix() *
                                *g_Camera.GetProjMatrix();
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
+  g_pCamPosEV->SetFloatVector(*const_cast<D3DXVECTOR3 *>(g_Camera.GetEyePt()));
 
   for (int i = 0; i < NUM_BLOCKS; ++i) {
     RenderBlock(pd3dDevice, blocks[i]);
@@ -384,6 +387,11 @@ LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 //--------------------------------------------------------------------------------------
 void CALLBACK OnKeyboard( UINT nChar, bool bKeyDown, bool bAltDown, void* pUserContext )
 {
+  if (bKeyDown) {
+    switch (nChar) {
+      case VK_F5: break;
+    }
+  }
 }
 
 

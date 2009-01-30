@@ -6,6 +6,7 @@
 
 cbuffer cb0 {
   float4x4 g_mWorldViewProj;
+  float3   g_vCamPos;
 }
 
 cbuffer cb1 {
@@ -49,7 +50,9 @@ VS_DENSITY_OUTPUT Density_VS(VS_DENSITY_INPUT Input) {
   VS_DENSITY_OUTPUT Output;
   Output.Position = float4(Input.Position.xy, 0.5, 1);
   float3 vVolumePos = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimPlusMarginsMinusOne.x);
-  Output.BlockPosition = (vVolumePos * VoxelDimPlusMarginsMinusOne.x - Margin.xxx) * InvVoxelDimMinusOne.x;
+  // Texel (0,0) is half a texel away from "real" position of vertex at (-1,-1), so compensate for that:
+  vVolumePos = (vVolumePos - float3(0.5, 0.5, 0.5)) * (1 + InvVoxelDimPlusMarginsMinusOne.x) + float3(0.5, 0.5, 0.5);
+  Output.BlockPosition = (vVolumePos * VoxelDimPlusMargins.x - Margin.xxx) * InvVoxelDim.x;
   Output.WorldPosition = float4(g_vBlockOffset + Output.BlockPosition * BlockSize, 1);
   Output.InstanceID = Input.InstanceID;
   return Output;
@@ -196,21 +199,29 @@ struct VS_BLOCK_INPUT {
 struct VS_BLOCK_OUTPUT {
   float4 Position : SV_Position;
   float3 Normal   : NORMAL;
+  float3 WorldPos : WORLDPOS;
 };
 
 VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   VS_BLOCK_OUTPUT Output;
   Output.Position = mul(float4(Input.Position, 1), g_mWorldViewProj);
   Output.Normal = Input.Normal;
+  Output.WorldPos = Input.Position;
   return Output;
 }
 
 float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
-  return float4(Input.Normal, 0);
+  float3 N = normalize(Input.Normal);
+  float3 L = normalize(g_vCamPos - Input.WorldPos);
+  float3 H = L;
+  float4 coeffs = lit(dot(N, L), dot(N, H), 128);
+  float intensity = dot(coeffs, float4(0.01, 0.29, 0.7, 0));
+  return intensity*float4(Input.Normal*0.5+0.5, 0);
 }
 
 RasterizerState rsWireframe {
-  FillMode = WIREFRAME;
+  //FillMode = WIREFRAME;
+  CullMode = NONE;
 };
 
 technique10 RenderBlock {
@@ -219,6 +230,6 @@ technique10 RenderBlock {
     SetGeometryShader(NULL);
     SetPixelShader(CompileShader(ps_4_0, Block_PS()));
     SetDepthStencilState(NULL, 0);
-    //SetRasterizerState(rsWireframe);
+    SetRasterizerState(rsWireframe);
   }
 }

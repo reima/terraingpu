@@ -5,6 +5,11 @@
 #include "DXUTcamera.h"
 #include <sstream>
 
+const UINT g_VoxelDim = 33;
+const UINT g_VoxelDimMinusOne = 32;
+const float g_InvVoxelDim = 1.0f/33.0f;
+const float g_InvVoxelDimMinusOne = 1.0f/32.0f;
+
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
 
@@ -29,8 +34,8 @@ void RenderDensityVolume(ID3D10Device *pd3dDevice) {
   D3D10_VIEWPORT viewport;
   viewport.TopLeftX = 0;
   viewport.TopLeftY = 0;
-  viewport.Width = 33;
-  viewport.Height = 33;
+  viewport.Width = g_VoxelDim;
+  viewport.Height = g_VoxelDim;
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;  
   pd3dDevice->RSSetViewports(1, &viewport);
@@ -43,7 +48,7 @@ void RenderDensityVolume(ID3D10Device *pd3dDevice) {
   pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
   g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(0)->Apply(0);
-  pd3dDevice->DrawInstanced(4, 33, 0, 0);
+  pd3dDevice->DrawInstanced(4, g_VoxelDim, 0, 0);
 }
 
 void GenTris(ID3D10Device *pd3dDevice) {
@@ -57,7 +62,7 @@ void GenTris(ID3D10Device *pd3dDevice) {
   
   g_pDensitySRVar->SetResource(g_pDensitySRView);
   g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0);
-  pd3dDevice->DrawInstanced(32*32, 32, 0, 0);
+  pd3dDevice->DrawInstanced(g_VoxelDimMinusOne*g_VoxelDimMinusOne, g_VoxelDimMinusOne, 0, 0);
 
   ID3D10Buffer *no_buffer = NULL;
   pd3dDevice->SOSetTargets(1, &no_buffer, &offsets);
@@ -124,9 +129,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   // Create density volume texture (including views)
   D3D10_TEXTURE3D_DESC tex3d_desc;
-  tex3d_desc.Width = 33;
-  tex3d_desc.Height = 33;
-  tex3d_desc.Depth = 33;
+  tex3d_desc.Width = g_VoxelDim;
+  tex3d_desc.Height = g_VoxelDim;
+  tex3d_desc.Depth = g_VoxelDim;
   tex3d_desc.Format = DXGI_FORMAT_R32_FLOAT;
   tex3d_desc.Usage = D3D10_USAGE_DEFAULT;
   tex3d_desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
@@ -186,15 +191,15 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   // Set up per-block voxel vertex buffer and input layout
   {
-    float voxels[32*32][2];
-    for (UINT i = 0; i < 32; ++i) {
-      for (UINT j = 0; j < 32; ++j) {
-        voxels[i+j*32][0] = i/32.0f;
-        voxels[i+j*32][1] = j/32.0f;
+    float voxels[g_VoxelDimMinusOne*g_VoxelDimMinusOne][2];
+    for (UINT i = 0; i < g_VoxelDimMinusOne; ++i) {
+      for (UINT j = 0; j < g_VoxelDimMinusOne; ++j) {
+        voxels[i+j*g_VoxelDimMinusOne][0] = i*g_InvVoxelDimMinusOne;
+        voxels[i+j*g_VoxelDimMinusOne][1] = j*g_InvVoxelDimMinusOne;
       }
     }
     D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = 32*32*2*sizeof(float);
+    buffer_desc.ByteWidth = sizeof(voxels);
     buffer_desc.Usage = D3D10_USAGE_IMMUTABLE;
     buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
     buffer_desc.CPUAccessFlags = 0;
@@ -256,7 +261,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   g_uiHeight = pBackBufferSurfaceDesc->Height;
 
   float aspect = g_uiWidth / (float)g_uiHeight;
-  g_Camera.SetProjParams(D3DX_PI / 2, aspect, 0.1f, 10.0f);
+  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.1f, 10.0f);
 
   return S_OK;
 }

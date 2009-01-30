@@ -9,11 +9,15 @@ cbuffer cb0 {
 }
 
 cbuffer cb1 {
-  float VoxelDim = 17;
-  float VoxelDimMinusOne = 16;
-  float Margin = 1;
+  uint VoxelDim = 17;
+  uint VoxelDimMinusOne = 16;
   float2 InvVoxelDim = float2(1.0/17.0, 0);
   float2 InvVoxelDimMinusOne = float2(1.0/16.0, 0);
+  uint Margin = 4;
+  uint VoxelDimPlusMargins = 25;
+  uint VoxelDimPlusMarginsMinusOne = 24;
+  float2 InvVoxelDimPlusMargins = float2(1.0/25.0, 0);
+  float2 InvVoxelDimPlusMarginsMinusOne = float2(1.0/24.0, 0);
   float BlockSize = 1.0;
 }
 
@@ -44,7 +48,8 @@ struct GS_DENSITY_OUTPUT {
 VS_DENSITY_OUTPUT Density_VS(VS_DENSITY_INPUT Input) {
   VS_DENSITY_OUTPUT Output;
   Output.Position = float4(Input.Position.xy, 0.5, 1);
-  Output.BlockPosition = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimMinusOne.x);
+  float3 vVolumePos = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimPlusMarginsMinusOne.x);
+  Output.BlockPosition = (vVolumePos * VoxelDimPlusMarginsMinusOne.x - Margin.xxx) * InvVoxelDimMinusOne.x;
   Output.WorldPosition = float4(g_vBlockOffset + Output.BlockPosition * BlockSize, 1);
   Output.InstanceID = Input.InstanceID;
   return Output;
@@ -102,7 +107,7 @@ SamplerState ssTrilinearClamp {
 
 
 VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
-  int4 pos = int4(Input.Position.xy, Input.InstanceID, 0);
+  int4 pos = int4(int3(Input.Position.xy, Input.InstanceID) + Margin.xxx, 0);
   float4 density0123;
   float4 density4567;
   density0123.x = g_tDensityVolume.Load(pos + int4(0, 0, 0, 0), 0);
@@ -126,6 +131,7 @@ VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
 }
 
 float3 GetEdgeOffset(int3 pos, int edge) {
+  pos += Margin.xxx;
   float d1 = g_tDensityVolume.Load(int4(pos + edgeStartCorner[edge], 0));
   float d2 = g_tDensityVolume.Load(int4(pos + edgeStartCorner[edge] + edgeDirection[edge], 0));
   return (edgeStartCorner[edge] + (d1/(d1-d2))*edgeDirection[edge]);
@@ -134,15 +140,15 @@ float3 GetEdgeOffset(int3 pos, int edge) {
 GS_GENTRIS_OUTPUT CreateVertex(int3 vBlockPos, int nEdge) {
   GS_GENTRIS_OUTPUT Output;
   float3 vEdgePos = (vBlockPos + GetEdgeOffset(vBlockPos, nEdge));
-  float3 vVolumePos = vEdgePos * InvVoxelDim.x;
+  float3 vVolumePos = (vEdgePos + Margin.xxx) * InvVoxelDimPlusMargins.x;
   Output.Position = g_vBlockOffset + vEdgePos * InvVoxelDimMinusOne.x * BlockSize;
   float3 grad;
-  grad.x = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDim.xyy, 0) -
-           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDim.xyy, 0);
-  grad.y = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDim.yxy, 0) -
-           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDim.yxy, 0);
-  grad.z = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDim.yyx, 0) -
-           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDim.yyx, 0);
+  grad.x = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimPlusMargins.xyy, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimPlusMargins.xyy, 0);
+  grad.y = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimPlusMargins.yxy, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimPlusMargins.yxy, 0);
+  grad.z = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimPlusMargins.yyx, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimPlusMargins.yyx, 0);
   Output.Normal = -normalize(grad);
   return Output;
 }
@@ -200,7 +206,7 @@ VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
 }
 
 float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
-  return float4(Input.Normal*0.5+0.5, 0);
+  return float4(Input.Normal, 0);
 }
 
 RasterizerState rsWireframe {
@@ -213,6 +219,6 @@ technique10 RenderBlock {
     SetGeometryShader(NULL);
     SetPixelShader(CompileShader(ps_4_0, Block_PS()));
     SetDepthStencilState(NULL, 0);
-    SetRasterizerState(rsWireframe);
+    //SetRasterizerState(rsWireframe);
   }
 }

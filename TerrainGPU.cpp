@@ -9,6 +9,9 @@ const UINT g_VoxelDim = 17;
 const UINT g_VoxelDimMinusOne = 16;
 const float g_InvVoxelDim = 1.0f/17.0f;
 const float g_InvVoxelDimMinusOne = 1.0f/16.0f;
+const UINT g_Margin = 4;
+const UINT g_VoxelDimWithMargins = 25;
+const UINT g_VoxelDimWithMarginsMinusOne = 24;
 
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
@@ -37,8 +40,8 @@ void RenderDensityVolume(ID3D10Device *pd3dDevice) {
   D3D10_VIEWPORT viewport;
   viewport.TopLeftX = 0;
   viewport.TopLeftY = 0;
-  viewport.Width = g_VoxelDim;
-  viewport.Height = g_VoxelDim;
+  viewport.Width = g_VoxelDimWithMargins;
+  viewport.Height = g_VoxelDimWithMargins;
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
   pd3dDevice->RSSetViewports(1, &viewport);
@@ -51,7 +54,7 @@ void RenderDensityVolume(ID3D10Device *pd3dDevice) {
   pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
   g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(0)->Apply(0);
-  pd3dDevice->DrawInstanced(4, g_VoxelDim, 0, 0);
+  pd3dDevice->DrawInstanced(4, g_VoxelDimWithMargins, 0, 0);
 }
 
 void GenTris(ID3D10Device *pd3dDevice) {
@@ -133,9 +136,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   // Create density volume texture (including views)
   D3D10_TEXTURE3D_DESC tex3d_desc;
-  tex3d_desc.Width = g_VoxelDim;
-  tex3d_desc.Height = g_VoxelDim;
-  tex3d_desc.Depth = g_VoxelDim;
+  tex3d_desc.Width = g_VoxelDimWithMargins;
+  tex3d_desc.Height = g_VoxelDimWithMargins;
+  tex3d_desc.Depth = g_VoxelDimWithMargins;
   tex3d_desc.Format = DXGI_FORMAT_R32_FLOAT;
   tex3d_desc.Usage = D3D10_USAGE_DEFAULT;
   tex3d_desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;

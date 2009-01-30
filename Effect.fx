@@ -9,11 +9,12 @@ cbuffer cb0 {
 }
 
 cbuffer cb1 {
-  float VoxelDim = 33;
-  float VoxelDimMinusOne = 32;
-  float BlockSize = 0.5;
-  float2 InvVoxelDim = float2(1.0/33.0, 0);
-  float2 InvVoxelDimMinusOne = float2(1.0/32.0, 0);
+  float VoxelDim = 17;
+  float VoxelDimMinusOne = 16;
+  float Margin = 1;
+  float2 InvVoxelDim = float2(1.0/17.0, 0);
+  float2 InvVoxelDimMinusOne = float2(1.0/16.0, 0);
+  float BlockSize = 1.0;
 }
 
 cbuffer cb2 {
@@ -44,7 +45,7 @@ VS_DENSITY_OUTPUT Density_VS(VS_DENSITY_INPUT Input) {
   VS_DENSITY_OUTPUT Output;
   Output.Position = float4(Input.Position.xy, 0.5, 1);
   Output.BlockPosition = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimMinusOne.x);
-  Output.WorldPosition = float4(Output.BlockPosition*BlockSize + g_vBlockOffset, 1);
+  Output.WorldPosition = float4(g_vBlockOffset + Output.BlockPosition * BlockSize, 1);
   Output.InstanceID = Input.InstanceID;
   return Output;
 }
@@ -69,13 +70,13 @@ float Density_PS(GS_DENSITY_OUTPUT Input) : SV_Target {
 
 
 struct VS_GENTRIS_INPUT {
-  float2 Position   : POSITION;
-  uint   InstanceID : SV_InstanceID;
+  uint2 Position   : POSITION;
+  uint  InstanceID : SV_InstanceID;
 };
 
 struct VS_GENTRIS_OUTPUT {
-  float3 Position   : POSITION;
-  uint   Case       : CASE;
+  uint3 Position   : POSITION;
+  uint  Case       : CASE;
 };
 
 struct GS_GENTRIS_OUTPUT {
@@ -101,17 +102,17 @@ SamplerState ssTrilinearClamp {
 
 
 VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
-  float3 uvw = float3(Input.Position.xy, Input.InstanceID * InvVoxelDimMinusOne.x);
+  int4 pos = int4(Input.Position.xy, Input.InstanceID, 0);
   float4 density0123;
   float4 density4567;
-  density0123.x = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.yyy, 0);
-  density0123.y = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.yxy, 0);
-  density0123.z = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.xxy, 0);
-  density0123.w = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.xyy, 0);
-  density4567.x = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.yyx, 0);
-  density4567.y = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.yxx, 0);
-  density4567.z = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.xxx, 0);
-  density4567.w = g_tDensityVolume.SampleLevel(ssNearestClamp, uvw + InvVoxelDimMinusOne.xyx, 0);
+  density0123.x = g_tDensityVolume.Load(pos + int4(0, 0, 0, 0), 0);
+  density0123.y = g_tDensityVolume.Load(pos + int4(0, 1, 0, 0), 0);
+  density0123.z = g_tDensityVolume.Load(pos + int4(1, 1, 0, 0), 0);
+  density0123.w = g_tDensityVolume.Load(pos + int4(1, 0, 0, 0), 0);
+  density4567.x = g_tDensityVolume.Load(pos + int4(0, 0, 1, 0), 0);
+  density4567.y = g_tDensityVolume.Load(pos + int4(0, 1, 1, 0), 0);
+  density4567.z = g_tDensityVolume.Load(pos + int4(1, 1, 1, 0), 0);
+  density4567.w = g_tDensityVolume.Load(pos + int4(1, 0, 1, 0), 0);
 
   uint4 i0123 = (uint4)saturate(density0123*99999);
   uint4 i4567 = (uint4)saturate(density4567*99999);
@@ -119,28 +120,29 @@ VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
   VS_GENTRIS_OUTPUT Output;
   Output.Case = (i0123.x << 0) | (i0123.y << 1) | (i0123.z << 2) | (i0123.w << 3) |
                 (i4567.x << 4) | (i4567.y << 5) | (i4567.z << 6) | (i4567.w << 7);
-  Output.Position = uvw;
+  Output.Position = int3(Input.Position.xy, Input.InstanceID);
 
   return Output;
 }
 
-float3 GetVertexFromEdge(float3 pos, int edge) {
-  float d1 = g_tDensityVolume.SampleLevel(ssNearestClamp, pos + edgeStartCorner[edge] * InvVoxelDimMinusOne.x, 0);
-  float d2 = g_tDensityVolume.SampleLevel(ssNearestClamp, pos + (edgeStartCorner[edge] + edgeDirection[edge]) * InvVoxelDimMinusOne.x, 0);
-  return pos + (edgeStartCorner[edge] + (d1/(d1-d2))*edgeDirection[edge]) * InvVoxelDimMinusOne.x;
+float3 GetEdgeOffset(int3 pos, int edge) {
+  float d1 = g_tDensityVolume.Load(int4(pos + edgeStartCorner[edge], 0));
+  float d2 = g_tDensityVolume.Load(int4(pos + edgeStartCorner[edge] + edgeDirection[edge], 0));
+  return (edgeStartCorner[edge] + (d1/(d1-d2))*edgeDirection[edge]);
 }
 
-GS_GENTRIS_OUTPUT ladida(float3 pos, int edge) {
+GS_GENTRIS_OUTPUT CreateVertex(int3 vBlockPos, int nEdge) {
   GS_GENTRIS_OUTPUT Output;
-  float3 bsPos = GetVertexFromEdge(pos, edge);
-  Output.Position = g_vBlockOffset + bsPos * BlockSize;
+  float3 vEdgePos = (vBlockPos + GetEdgeOffset(vBlockPos, nEdge));
+  float3 vVolumePos = vEdgePos * InvVoxelDim.x;
+  Output.Position = g_vBlockOffset + vEdgePos * InvVoxelDimMinusOne.x * BlockSize;
   float3 grad;
-  grad.x = g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos + InvVoxelDimMinusOne.xyy, 0) -
-           g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos - InvVoxelDimMinusOne.xyy, 0);
-  grad.y = g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos + InvVoxelDimMinusOne.yxy, 0) -
-           g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos - InvVoxelDimMinusOne.yxy, 0);
-  grad.z = g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos + InvVoxelDimMinusOne.yyx, 0) -
-           g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos - InvVoxelDimMinusOne.yyx, 0);
+  grad.x = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDim.xyy, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDim.xyy, 0);
+  grad.y = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDim.yxy, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDim.yxy, 0);
+  grad.z = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDim.yyx, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDim.yyx, 0);
   Output.Normal = -normalize(grad);
   return Output;
 }
@@ -149,13 +151,14 @@ GS_GENTRIS_OUTPUT ladida(float3 pos, int edge) {
 void GenTris_GS(point VS_GENTRIS_OUTPUT Input[1],
                 inout TriangleStream<GS_GENTRIS_OUTPUT> Stream) {
   const uint nTris = numTris[Input[0].Case];
+  const int3 vBlockPos = Input[0].Position;
   for (uint i = 0; i < nTris; ++i) {
     const int3 edges = triTable[Input[0].Case][i];
-    Stream.Append(ladida(Input[0].Position, edges.x));
-    Stream.Append(ladida(Input[0].Position, edges.y));
-    Stream.Append(ladida(Input[0].Position, edges.z));    
+    Stream.Append(CreateVertex(vBlockPos, edges.x));
+    Stream.Append(CreateVertex(vBlockPos, edges.y));
+    Stream.Append(CreateVertex(vBlockPos, edges.z));
     Stream.RestartStrip();
-  }  
+  }
 }
 
 DepthStencilState dssDisableDepthStencil {
@@ -163,20 +166,17 @@ DepthStencilState dssDisableDepthStencil {
   StencilEnable = FALSE;
 };
 
-GeometryShader gsGenTris = ConstructGSWithSO(
-  CompileShader(gs_4_0, GenTris_GS()),
-  "POSITION.xyz; NORMAL.xyz");
-
 technique10 GenBlock {
   pass P0 {
     SetVertexShader(CompileShader(vs_4_0, Density_VS()));
     SetGeometryShader(CompileShader(gs_4_0, Density_GS()));
     SetPixelShader(CompileShader(ps_4_0, Density_PS()));
     SetDepthStencilState(dssDisableDepthStencil, 0);
+    SetRasterizerState(NULL);
   }
   pass P1 {
     SetVertexShader(CompileShader(vs_4_0, GenTris_VS()));
-    SetGeometryShader(gsGenTris);
+    SetGeometryShader(ConstructGSWithSO(CompileShader(gs_4_0, GenTris_GS()), "POSITION.xyz; NORMAL.xyz"));
     SetPixelShader(NULL);
     SetDepthStencilState(dssDisableDepthStencil, 0);
   }
@@ -200,8 +200,12 @@ VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
 }
 
 float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
-  return float4(Input.Normal, 0);
+  return float4(Input.Normal*0.5+0.5, 0);
 }
+
+RasterizerState rsWireframe {
+  FillMode = WIREFRAME;
+};
 
 technique10 RenderBlock {
   pass P0 {
@@ -209,5 +213,6 @@ technique10 RenderBlock {
     SetGeometryShader(NULL);
     SetPixelShader(CompileShader(ps_4_0, Block_PS()));
     SetDepthStencilState(NULL, 0);
+    SetRasterizerState(rsWireframe);
   }
 }

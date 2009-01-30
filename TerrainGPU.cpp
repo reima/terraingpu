@@ -5,10 +5,10 @@
 #include "DXUTcamera.h"
 #include <sstream>
 
-const UINT g_VoxelDim = 33;
-const UINT g_VoxelDimMinusOne = 32;
-const float g_InvVoxelDim = 1.0f/33.0f;
-const float g_InvVoxelDimMinusOne = 1.0f/32.0f;
+const UINT g_VoxelDim = 17;
+const UINT g_VoxelDimMinusOne = 16;
+const float g_InvVoxelDim = 1.0f/17.0f;
+const float g_InvVoxelDimMinusOne = 1.0f/16.0f;
 
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
@@ -40,7 +40,7 @@ void RenderDensityVolume(ID3D10Device *pd3dDevice) {
   viewport.Width = g_VoxelDim;
   viewport.Height = g_VoxelDim;
   viewport.MinDepth = 0.0f;
-  viewport.MaxDepth = 1.0f;  
+  viewport.MaxDepth = 1.0f;
   pd3dDevice->RSSetViewports(1, &viewport);
   pd3dDevice->OMSetRenderTargets(1, &g_pDensityRTView, NULL);
 
@@ -62,7 +62,7 @@ void GenTris(ID3D10Device *pd3dDevice) {
   pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
   pd3dDevice->SOSetTargets(1, &g_pBlockTrisVB, &offsets);
   pd3dDevice->OMSetRenderTargets(0, NULL, NULL);
-  
+
   g_pDensitySRVar->SetResource(g_pDensitySRView);
   g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0);
   pd3dDevice->DrawInstanced(g_VoxelDimMinusOne*g_VoxelDimMinusOne, g_VoxelDimMinusOne, 0, 0);
@@ -82,7 +82,7 @@ void RenderBlock(ID3D10Device *pd3dDevice, ID3D10Buffer *pBlockVB) {
   pd3dDevice->IASetVertexBuffers(0, 1, &pBlockVB, &strides, &offsets);
   pd3dDevice->IASetInputLayout(g_pBlockTrisIL);
   pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  
+
   g_pEffect->GetTechniqueByName("RenderBlock")->GetPassByIndex(0)->Apply(0);
   pd3dDevice->DrawAuto();
 }
@@ -195,11 +195,11 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   // Set up per-block voxel vertex buffer and input layout
   {
-    float voxels[g_VoxelDimMinusOne*g_VoxelDimMinusOne][2];
+    UINT voxels[g_VoxelDimMinusOne*g_VoxelDimMinusOne][2];
     for (UINT i = 0; i < g_VoxelDimMinusOne; ++i) {
       for (UINT j = 0; j < g_VoxelDimMinusOne; ++j) {
-        voxels[i+j*g_VoxelDimMinusOne][0] = i*g_InvVoxelDimMinusOne;
-        voxels[i+j*g_VoxelDimMinusOne][1] = j*g_InvVoxelDimMinusOne;
+        voxels[i+j*g_VoxelDimMinusOne][0] = i;
+        voxels[i+j*g_VoxelDimMinusOne][1] = j;
       }
     }
     D3D10_BUFFER_DESC buffer_desc;
@@ -215,7 +215,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
     V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc, &init_data, &g_pBlockVoxelsVB));
 
     D3D10_INPUT_ELEMENT_DESC input_elements[] = {
-      { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },    
+      { "POSITION", 0, DXGI_FORMAT_R32G32_UINT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
     };
     UINT num_elements = sizeof(input_elements)/sizeof(input_elements[0]);
     D3D10_PASS_DESC pass_desc;
@@ -228,7 +228,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   // Set up per-block triangle vertex buffers and input layout
   {
     D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(32*32*32*15);
+    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(g_VoxelDimMinusOne*g_VoxelDimMinusOne*g_VoxelDimMinusOne*15);
     buffer_desc.Usage = D3D10_USAGE_DEFAULT;
     buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
     buffer_desc.CPUAccessFlags = 0;
@@ -236,8 +236,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
     V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc, NULL, &g_pBlockTrisVB));
 
     D3D10_INPUT_ELEMENT_DESC input_elements[] = {
-      { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },    
-      { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },    
+      { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+      { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
     };
     UINT num_elements = sizeof(input_elements)/sizeof(input_elements[0]);
     D3D10_PASS_DESC pass_desc;
@@ -250,6 +250,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   D3DXVECTOR3 eye(0.5f, 0.5f, -2);
   D3DXVECTOR3 lookat(0.5f, 0.5f, 0.5f);
   g_Camera.SetViewParams(&eye, &lookat);
+  g_Camera.SetScalers(0.01f, 2.0f);
 
   return S_OK;
 }
@@ -296,9 +297,9 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
     0, 0,
     g_uiWidth, g_uiHeight,
     0.0f, 1.0f
-  };  
+  };
   pd3dDevice->RSSetViewports(1, &viewport);
-  
+
   // Clear render target and the depth stencil
   float ClearColor[4] = { 0.176f, 0.196f, 0.667f, 0.0f };
   pd3dDevice->ClearRenderTargetView( DXUTGetD3D10RenderTargetView(), ClearColor );
@@ -315,7 +316,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
 
 
 //--------------------------------------------------------------------------------------
-// Release D3D10 resources created in OnD3D10ResizedSwapChain 
+// Release D3D10 resources created in OnD3D10ResizedSwapChain
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10ReleasingSwapChain( void* pUserContext )
 {
@@ -323,7 +324,7 @@ void CALLBACK OnD3D10ReleasingSwapChain( void* pUserContext )
 
 
 //--------------------------------------------------------------------------------------
-// Release D3D10 resources created in OnD3D10CreateDevice 
+// Release D3D10 resources created in OnD3D10CreateDevice
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10DestroyDevice( void* pUserContext )
 {
@@ -356,13 +357,14 @@ LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 //--------------------------------------------------------------------------------------
 void CALLBACK OnKeyboard( UINT nChar, bool bKeyDown, bool bAltDown, void* pUserContext )
 {
+  if (!bKeyDown) return;
   switch (nChar) {
-    case 'J': g_BlockOffset.x -= 0.1f; break;
-    case 'L': g_BlockOffset.x += 0.1f; break;
-    case 'K': g_BlockOffset.y -= 0.1f; break;
-    case 'I': g_BlockOffset.y += 0.1f; break;
-    case 'U': g_BlockOffset.z -= 0.1f; break;
-    case 'O': g_BlockOffset.z += 0.1f; break;
+    case 'J': g_BlockOffset.x -= g_InvVoxelDimMinusOne; break;
+    case 'L': g_BlockOffset.x += g_InvVoxelDimMinusOne; break;
+    case 'K': g_BlockOffset.y -= g_InvVoxelDimMinusOne; break;
+    case 'I': g_BlockOffset.y += g_InvVoxelDimMinusOne; break;
+    case 'U': g_BlockOffset.z -= g_InvVoxelDimMinusOne; break;
+    case 'O': g_BlockOffset.z += g_InvVoxelDimMinusOne; break;
   };
 }
 
@@ -396,7 +398,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
     _CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
 
-    // DXUT will create and use the best device (either D3D9 or D3D10) 
+    // DXUT will create and use the best device (either D3D9 or D3D10)
     // that is available on the system depending on which D3D callbacks are set below
 
     // Set general DXUT callbacks

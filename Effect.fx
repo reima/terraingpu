@@ -11,9 +11,13 @@ cbuffer cb0 {
 cbuffer cb1 {
   float VoxelDim = 33;
   float VoxelDimMinusOne = 32;
-  float BlockSize = 1.0;
+  float BlockSize = 0.5;
   float2 InvVoxelDim = float2(1.0/33.0, 0);
   float2 InvVoxelDimMinusOne = float2(1.0/32.0, 0);
+}
+
+cbuffer cb2 {
+  float3 g_vBlockOffset = float3(1, 0, 0);
 }
 
 struct VS_DENSITY_INPUT {
@@ -40,7 +44,7 @@ VS_DENSITY_OUTPUT Density_VS(VS_DENSITY_INPUT Input) {
   VS_DENSITY_OUTPUT Output;
   Output.Position = float4(Input.Position.xy, 0.5, 1);
   Output.BlockPosition = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimMinusOne.x);
-  Output.WorldPosition = float4(Output.BlockPosition*BlockSize/* + g_vBlockPosition*/, 1);
+  Output.WorldPosition = float4(Output.BlockPosition*BlockSize + g_vBlockOffset, 1);
   Output.InstanceID = Input.InstanceID;
   return Output;
 }
@@ -129,7 +133,7 @@ float3 GetVertexFromEdge(float3 pos, int edge) {
 GS_GENTRIS_OUTPUT ladida(float3 pos, int edge) {
   GS_GENTRIS_OUTPUT Output;
   float3 bsPos = GetVertexFromEdge(pos, edge);
-  Output.Position = GetVertexFromEdge(pos, edge) * BlockSize;
+  Output.Position = g_vBlockOffset + bsPos * BlockSize;
   float3 grad;
   grad.x = g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos + InvVoxelDimMinusOne.xyy, 0) -
            g_tDensityVolume.SampleLevel(ssTrilinearClamp, bsPos - InvVoxelDimMinusOne.xyy, 0);

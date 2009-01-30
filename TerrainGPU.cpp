@@ -12,6 +12,9 @@ const float g_InvVoxelDimMinusOne = 1.0f/32.0f;
 
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
+ID3D10EffectVectorVariable *g_pBlockOffsetEV;
+
+D3DXVECTOR3 g_BlockOffset(0, 0, 0);
 
 ID3D10Buffer *g_pScreenAlignedQuadVB;
 ID3D10InputLayout *g_pScreenAlignedQuadIL;
@@ -126,6 +129,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   }
 
   g_pWorldViewProjEV = g_pEffect->GetVariableByName("g_mWorldViewProj")->AsMatrix();
+  g_pBlockOffsetEV = g_pEffect->GetVariableByName("g_vBlockOffset")->AsVector();
 
   // Create density volume texture (including views)
   D3D10_TEXTURE3D_DESC tex3d_desc;
@@ -304,6 +308,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
                                *g_Camera.GetViewMatrix() *
                                *g_Camera.GetProjMatrix();
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
+  g_pBlockOffsetEV->SetFloatVector(g_BlockOffset);
 
   RenderBlock(pd3dDevice, g_pBlockTrisVB);
 }
@@ -351,6 +356,14 @@ LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 //--------------------------------------------------------------------------------------
 void CALLBACK OnKeyboard( UINT nChar, bool bKeyDown, bool bAltDown, void* pUserContext )
 {
+  switch (nChar) {
+    case 'J': g_BlockOffset.x -= 0.1f; break;
+    case 'L': g_BlockOffset.x += 0.1f; break;
+    case 'K': g_BlockOffset.y -= 0.1f; break;
+    case 'I': g_BlockOffset.y += 0.1f; break;
+    case 'U': g_BlockOffset.z -= 0.1f; break;
+    case 'O': g_BlockOffset.z += 0.1f; break;
+  };
 }
 
 

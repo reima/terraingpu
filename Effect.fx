@@ -14,11 +14,11 @@ cbuffer cb1 {
   uint VoxelDimMinusOne = 32;
   float2 InvVoxelDim = float2(1.0/33.0, 0);
   float2 InvVoxelDimMinusOne = float2(1.0/32.0, 0);
-  uint Margin = 2;
-  uint VoxelDimPlusMargins = 37;
-  uint VoxelDimPlusMarginsMinusOne = 36;
-  float2 InvVoxelDimPlusMargins = float2(1.0/37.0, 0);
-  float2 InvVoxelDimPlusMarginsMinusOne = float2(1.0/36.0, 0);
+  uint Margin = 0;
+  uint VoxelDimWithMargins = 33;
+  uint VoxelDimWithMarginsMinusOne = 32;
+  float2 InvVoxelDimWithMargins = float2(1.0/33.0, 0);
+  float2 InvVoxelDimWithMarginsMinusOne = float2(1.0/32.0, 0);
   float BlockSize = 1.0;
 }
 
@@ -49,10 +49,11 @@ struct GS_DENSITY_OUTPUT {
 VS_DENSITY_OUTPUT Density_VS(VS_DENSITY_INPUT Input) {
   VS_DENSITY_OUTPUT Output;
   Output.Position = float4(Input.Position.xy, 0.5, 1);
-  float3 vVolumePos = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimPlusMarginsMinusOne.x);
+  float3 vVolumePos = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimWithMargins.x);
   // Texel (0,0) is half a texel away from "real" position of vertex at (-1,-1), so compensate for that:
-  vVolumePos = (vVolumePos - float3(0.5, 0.5, 0.5)) * (1 + InvVoxelDimPlusMarginsMinusOne.x) + float3(0.5, 0.5, 0.5);
-  Output.BlockPosition = (vVolumePos * VoxelDimPlusMargins.x - Margin.xxx) * InvVoxelDim.x;
+  vVolumePos = (vVolumePos - float3(0.5, 0.5, 0.5)) * (1 + InvVoxelDimMinusOne.x) + float3(0.5, 0.5, 0.5);
+  Output.BlockPosition = (vVolumePos * VoxelDimWithMargins.x - Margin.xxx) * InvVoxelDim.x;
+  //Output.BlockPosition *= VoxelDim.x*InvVoxelDimMinusOne.x;
   Output.WorldPosition = float4(g_vBlockOffset + Output.BlockPosition * BlockSize, 1);
   Output.InstanceID = Input.InstanceID;
   return Output;
@@ -143,15 +144,15 @@ float3 GetEdgeOffset(int3 pos, int edge) {
 GS_GENTRIS_OUTPUT CreateVertex(int3 vBlockPos, int nEdge) {
   GS_GENTRIS_OUTPUT Output;
   float3 vEdgePos = (vBlockPos + GetEdgeOffset(vBlockPos, nEdge));
-  float3 vVolumePos = (vEdgePos + Margin.xxx) * InvVoxelDimPlusMargins.x;
+  float3 vVolumePos = (vEdgePos + Margin.xxx) * InvVoxelDimWithMargins.x;
   Output.Position = g_vBlockOffset + vEdgePos * InvVoxelDimMinusOne.x * BlockSize;
   float3 grad;
-  grad.x = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimPlusMargins.xyy, 0) -
-           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimPlusMargins.xyy, 0);
-  grad.y = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimPlusMargins.yxy, 0) -
-           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimPlusMargins.yxy, 0);
-  grad.z = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimPlusMargins.yyx, 0) -
-           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimPlusMargins.yyx, 0);
+  grad.x = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimWithMargins.xyy, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimWithMargins.xyy, 0);
+  grad.y = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimWithMargins.yxy, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimWithMargins.yxy, 0);
+  grad.z = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimWithMargins.yyx, 0) -
+           g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimWithMargins.yyx, 0);
   Output.Normal = -normalize(grad);
   return Output;
 }
@@ -199,28 +200,47 @@ struct VS_BLOCK_INPUT {
 struct VS_BLOCK_OUTPUT {
   float4 Position : SV_Position;
   float3 Normal   : NORMAL;
+  float3 LightDir : LIGHTDIR;
+  float3 ViewDir  : VIEWDIR;
   float3 WorldPos : WORLDPOS;
 };
+
+Texture2D g_tDiffuse;
+Texture2D g_tNormal;
 
 VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   VS_BLOCK_OUTPUT Output;
   Output.Position = mul(float4(Input.Position, 1), g_mWorldViewProj);
   Output.Normal = Input.Normal;
   Output.WorldPos = Input.Position;
+  Output.LightDir = normalize(g_vCamPos - Input.Position);
+  Output.ViewDir = Output.LightDir;
   return Output;
 }
 
 float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
-  float3 N = normalize(Input.Normal);
-  float3 L = normalize(g_vCamPos - Input.WorldPos);
+  float2 tex;
+  float3 N = normalize(Input.Normal);  
+  if (N.x > N.y && N.x > N.z) {
+    tex = Input.WorldPos.yz;
+  } else if (N.y > N.x && N.y > N.z) {
+    tex = Input.WorldPos.xz;
+  } else {
+    tex = Input.WorldPos.xy;
+  }
+  tex *= 2;
+  float3 L = normalize(Input.LightDir);
   float3 H = L;
-  float4 coeffs = lit(dot(N, L), dot(N, H), 128);
+  float4 coeffs = lit(dot(N, L), dot(N, H), 1);
   float intensity = dot(coeffs, float4(0.01, 0.29, 0.7, 0));
-  return intensity*float4(Input.Normal*0.5+0.5, 0);
+  float4 color = float4(Input.Normal*0.5+0.5, 0);  
+  //float4 color = g_tDiffuse.Sample(ssTrilinearRepeat, tex);
+  //float4 color = float4(0.6 + 0.4*N, 0);
+  return intensity*color;
 }
 
 RasterizerState rsWireframe {
-  //FillMode = WIREFRAME;
+  FillMode = WIREFRAME;
   CullMode = NONE;
 };
 
@@ -230,6 +250,6 @@ technique10 RenderBlock {
     SetGeometryShader(NULL);
     SetPixelShader(CompileShader(ps_4_0, Block_PS()));
     SetDepthStencilState(NULL, 0);
-    SetRasterizerState(rsWireframe);
+    //SetRasterizerState(rsWireframe);
   }
 }

@@ -12,6 +12,9 @@ const float g_InvVoxelDimMinusOne = 1.0f/g_VoxelDimMinusOne;
 const UINT g_Margin = 2;
 const UINT g_VoxelDimWithMargins = g_VoxelDim+2*g_Margin;
 const UINT g_VoxelDimWithMarginsMinusOne = g_VoxelDimWithMargins-1;
+const float g_InvVoxelDimWithMargins = 1.0f/g_VoxelDimWithMargins;
+const float g_InvVoxelDimWithMarginsMinusOne = 1.0f/g_VoxelDimWithMarginsMinusOne;
+const float g_BlockSize = 1.0f;
 
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
@@ -33,7 +36,10 @@ struct BLOCK {
   ID3D10Buffer *pBlockTrisVB;
   D3DXVECTOR3 vBlockOffset;
 };
-const int NUM_BLOCKS = 2;
+const int BLOCKS_X = 3;
+const int BLOCKS_Y = 3;
+const int BLOCKS_Z = 3;
+const int NUM_BLOCKS = BLOCKS_X*BLOCKS_Y*BLOCKS_Z;
 BLOCK blocks[NUM_BLOCKS];
 ID3D10InputLayout *g_pBlockTrisIL;
 
@@ -141,9 +147,39 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
     return hr;
   }
 
+  {
+    g_pEffect->GetVariableByName("BlockSize")->AsScalar()->SetFloat(g_BlockSize);
+    g_pEffect->GetVariableByName("VoxelDim")->AsScalar()->SetInt(g_VoxelDim);
+    g_pEffect->GetVariableByName("VoxelDimMinusOne")->AsScalar()->SetInt(g_VoxelDimMinusOne);
+    g_pEffect->GetVariableByName("Margin")->AsScalar()->SetInt(g_Margin);
+    g_pEffect->GetVariableByName("VoxelDimWithMargins")->AsScalar()->SetInt(g_VoxelDimWithMargins);
+    g_pEffect->GetVariableByName("VoxelDimWithMarginsMinusOne")->AsScalar()->SetInt(g_VoxelDimWithMarginsMinusOne);
+    D3DXVECTOR2 dummy(0, 0);
+    dummy.x = g_InvVoxelDim;
+    g_pEffect->GetVariableByName("InvVoxelDim")->AsVector()->SetFloatVector(dummy);
+    dummy.x = g_InvVoxelDimMinusOne;
+    g_pEffect->GetVariableByName("InvVoxelDimMinusOne")->AsVector()->SetFloatVector(dummy);
+    dummy.x = g_InvVoxelDimWithMargins;
+    g_pEffect->GetVariableByName("InvVoxelDimWithMargins")->AsVector()->SetFloatVector(dummy);
+    dummy.x = g_InvVoxelDimWithMarginsMinusOne;
+    g_pEffect->GetVariableByName("InvVoxelDimWithMarginsMinusOne")->AsVector()->SetFloatVector(dummy);
+  }
+
   g_pWorldViewProjEV = g_pEffect->GetVariableByName("g_mWorldViewProj")->AsMatrix();
   g_pCamPosEV = g_pEffect->GetVariableByName("g_vCamPos")->AsVector();
   g_pBlockOffsetEV = g_pEffect->GetVariableByName("g_vBlockOffset")->AsVector();
+  {
+    ID3D10ShaderResourceView *srview;
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-diffuse.jpg", NULL, NULL, &srview, NULL));
+    g_pEffect->GetVariableByName("g_tDiffuse")->AsShaderResource()->SetResource(srview);
+    SAFE_RELEASE(srview);
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-normal.jpg", NULL, NULL, &srview, NULL));
+    g_pEffect->GetVariableByName("g_tNormal")->AsShaderResource()->SetResource(srview);
+    SAFE_RELEASE(srview);
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"NoiseVolume.dds", NULL, NULL, &srview, NULL));
+    g_pEffect->GetVariableByName("g_tNoise3D")->AsShaderResource()->SetResource(srview);
+    SAFE_RELEASE(srview);
+  }
 
   // Create density volume texture (including views)
   D3D10_TEXTURE3D_DESC tex3d_desc;
@@ -266,16 +302,13 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   D3DXVECTOR3 eye(0.5f, 0.5f, -2);
   D3DXVECTOR3 lookat(0.5f, 0.5f, 0.5f);
   g_Camera.SetViewParams(&eye, &lookat);
-  g_Camera.SetScalers(0.01f, 2.0f);
+  g_Camera.SetScalers(0.01f, 1.0f);
 
-  blocks[0].vBlockOffset = D3DXVECTOR3(-0.5f, -0.5f, -0.5f);
-  blocks[1].vBlockOffset = D3DXVECTOR3(-1.5f, -0.5f, -0.5f);
-  //blocks[2].vBlockOffset = D3DXVECTOR3(-0.5f, -0.5f, -1.5f);
-  //blocks[3].vBlockOffset = D3DXVECTOR3(-1.5f, -0.5f, -1.5f);
-  //blocks[4].vBlockOffset = D3DXVECTOR3(0, -1, 0);
-  //blocks[5].vBlockOffset = D3DXVECTOR3(-1, -1, 0);
-  //blocks[6].vBlockOffset = D3DXVECTOR3(0, -1, -1);
-  //blocks[7].vBlockOffset = D3DXVECTOR3(-1, -1, -1);
+  for (UINT x = 0; x < BLOCKS_X; ++x)
+    for (UINT y = 0; y < BLOCKS_X; ++y)
+      for (UINT z = 0; z < BLOCKS_X; ++z) {
+        blocks[x+y*BLOCKS_X+z*(BLOCKS_Y*BLOCKS_X)].vBlockOffset = D3DXVECTOR3(x*g_BlockSize, y*g_BlockSize, z*g_BlockSize);
+      }
 
   for (int i = 0; i < NUM_BLOCKS; ++i) {
     CreateBlock(pd3dDevice, &blocks[i]);

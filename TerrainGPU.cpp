@@ -36,9 +36,9 @@ struct BLOCK {
   ID3D10Buffer *pBlockTrisVB;
   D3DXVECTOR3 vBlockOffset;
 };
-const int BLOCKS_X = 3;
-const int BLOCKS_Y = 3;
-const int BLOCKS_Z = 3;
+const int BLOCKS_X = 5;
+const int BLOCKS_Y = 5;
+const int BLOCKS_Z = 5;
 const int NUM_BLOCKS = BLOCKS_X*BLOCKS_Y*BLOCKS_Z;
 BLOCK blocks[NUM_BLOCKS];
 ID3D10InputLayout *g_pBlockTrisIL;
@@ -170,10 +170,10 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_pBlockOffsetEV = g_pEffect->GetVariableByName("g_vBlockOffset")->AsVector();
   {
     ID3D10ShaderResourceView *srview;
-    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-diffuse.jpg", NULL, NULL, &srview, NULL));
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-diffuse.jpg", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tDiffuse")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
-    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-normal.jpg", NULL, NULL, &srview, NULL));
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-normal.jpg", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tNormal")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"NoiseVolume.dds", NULL, NULL, &srview, NULL));
@@ -186,7 +186,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   tex3d_desc.Width = g_VoxelDimWithMargins;
   tex3d_desc.Height = g_VoxelDimWithMargins;
   tex3d_desc.Depth = g_VoxelDimWithMargins;
-  tex3d_desc.Format = DXGI_FORMAT_R32_FLOAT;
+  tex3d_desc.Format = DXGI_FORMAT_R16_FLOAT;
   tex3d_desc.Usage = D3D10_USAGE_DEFAULT;
   tex3d_desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
   tex3d_desc.CPUAccessFlags = 0;
@@ -278,7 +278,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   // Set up per-block triangle vertex buffers and input layout
   {
     D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(g_VoxelDimMinusOne*g_VoxelDimMinusOne*g_VoxelDimMinusOne*15);
+    //buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(g_VoxelDimMinusOne*g_VoxelDimMinusOne*g_VoxelDimMinusOne*15); // Worst case
+    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(g_VoxelDimMinusOne*g_VoxelDimMinusOne*g_VoxelDimMinusOne*2); // Should suffice...
     buffer_desc.Usage = D3D10_USAGE_DEFAULT;
     buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
     buffer_desc.CPUAccessFlags = 0;
@@ -299,15 +300,18 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
                                            &g_pBlockTrisIL));
   }
 
-  D3DXVECTOR3 eye(0.5f, 0.5f, -2);
-  D3DXVECTOR3 lookat(0.5f, 0.5f, 0.5f);
+  D3DXVECTOR3 eye(0.0f, 1.0f, 0.0f);
+  D3DXVECTOR3 lookat(1.0f, 1.0f, 0.0f);
   g_Camera.SetViewParams(&eye, &lookat);
-  g_Camera.SetScalers(0.01f, 1.0f);
+  g_Camera.SetScalers(0.01f, 0.5f);
 
   for (UINT x = 0; x < BLOCKS_X; ++x)
-    for (UINT y = 0; y < BLOCKS_X; ++y)
-      for (UINT z = 0; z < BLOCKS_X; ++z) {
-        blocks[x+y*BLOCKS_X+z*(BLOCKS_Y*BLOCKS_X)].vBlockOffset = D3DXVECTOR3(x*g_BlockSize, y*g_BlockSize, z*g_BlockSize);
+    for (UINT y = 0; y < BLOCKS_Y; ++y)
+      for (UINT z = 0; z < BLOCKS_Z; ++z) {
+        blocks[x+y*BLOCKS_X+z*(BLOCKS_Y*BLOCKS_X)].vBlockOffset =
+            D3DXVECTOR3((x-0.5f*BLOCKS_X)*g_BlockSize,
+                        (y-0.5f*BLOCKS_Y)*g_BlockSize,
+                        (z-0.5f*BLOCKS_Z)*g_BlockSize);
       }
 
   for (int i = 0; i < NUM_BLOCKS; ++i) {
@@ -328,7 +332,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   g_uiHeight = pBackBufferSurfaceDesc->Height;
 
   float aspect = g_uiWidth / (float)g_uiHeight;
-  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.1f, 10.0f);
+  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 10.0f);
 
   return S_OK;
 }

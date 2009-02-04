@@ -12,7 +12,9 @@ float Noise(float3 tex) {
 }
 
 float DENSITY(float3 Position) {
-  float density = -Position.y+0.5;
+  //float density = 1 - length(Position);
+  //float density = -Position.y+0.5;
+  float density = 0;
   float3 warp = float3(Noise(Position*0.004), Noise((Position+0.1)*0.004), Noise((Position+0.2)*0.004));
   Position += warp;
   density += Noise(Position*1.01)*1.00;

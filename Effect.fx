@@ -14,16 +14,16 @@ cbuffer cb1 {
   uint VoxelDimMinusOne = 32;
   float2 InvVoxelDim = float2(1.0/33.0, 0);
   float2 InvVoxelDimMinusOne = float2(1.0/32.0, 0);
-  uint Margin = 0;
-  uint VoxelDimWithMargins = 33;
-  uint VoxelDimWithMarginsMinusOne = 32;
-  float2 InvVoxelDimWithMargins = float2(1.0/33.0, 0);
-  float2 InvVoxelDimWithMarginsMinusOne = float2(1.0/32.0, 0);
+  uint Margin = 2;
+  uint VoxelDimWithMargins = 37;
+  uint VoxelDimWithMarginsMinusOne = 36;
+  float2 InvVoxelDimWithMargins = float2(1.0/37.0, 0);
+  float2 InvVoxelDimWithMarginsMinusOne = float2(1.0/36.0, 0);
   float BlockSize = 1.0;
 }
 
 cbuffer cb2 {
-  float3 g_vBlockOffset = float3(1, 0, 0);
+  float3 g_vBlockOffset = float3(0, 0, 0);
 }
 
 struct VS_DENSITY_INPUT {
@@ -49,11 +49,11 @@ struct GS_DENSITY_OUTPUT {
 VS_DENSITY_OUTPUT Density_VS(VS_DENSITY_INPUT Input) {
   VS_DENSITY_OUTPUT Output;
   Output.Position = float4(Input.Position.xy, 0.5, 1);
-  float3 vVolumePos = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimWithMargins.x);
+  float3 vVolumePos = float3(Input.Tex.xy, Input.InstanceID * InvVoxelDimWithMarginsMinusOne.x);
   // Texel (0,0) is half a texel away from "real" position of vertex at (-1,-1), so compensate for that:
-  vVolumePos = (vVolumePos - float3(0.5, 0.5, 0.5)) * (1 + InvVoxelDimMinusOne.x) + float3(0.5, 0.5, 0.5);
-  Output.BlockPosition = (vVolumePos * VoxelDimWithMargins.x - Margin.xxx) * InvVoxelDim.x;
-  //Output.BlockPosition *= VoxelDim.x*InvVoxelDimMinusOne.x;
+  vVolumePos.xy = (vVolumePos - float2(0.5, 0.5)) * (1 + InvVoxelDimMinusOne.x) + float2(0.5, 0.5);
+  Output.BlockPosition.xy = (vVolumePos.xy * VoxelDimWithMargins.x - Margin.xx) * InvVoxelDim.x;
+  Output.BlockPosition.z = (vVolumePos.z * VoxelDimWithMarginsMinusOne.x - Margin) * InvVoxelDimMinusOne.x;
   Output.WorldPosition = float4(g_vBlockOffset + Output.BlockPosition * BlockSize, 1);
   Output.InstanceID = Input.InstanceID;
   return Output;
@@ -203,6 +203,7 @@ struct VS_BLOCK_OUTPUT {
   float3 LightDir : LIGHTDIR;
   float3 ViewDir  : VIEWDIR;
   float3 WorldPos : WORLDPOS;
+  float2 Depth    : DEPTH;
 };
 
 Texture2D g_tDiffuse;
@@ -211,37 +212,67 @@ Texture2D g_tNormal;
 VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   VS_BLOCK_OUTPUT Output;
   Output.Position = mul(float4(Input.Position, 1), g_mWorldViewProj);
+  Output.Depth = Output.Position.zw;
   Output.Normal = Input.Normal;
   Output.WorldPos = Input.Position;
   Output.LightDir = normalize(g_vCamPos - Input.Position);
-  Output.ViewDir = Output.LightDir;
+  Output.ViewDir = normalize(g_vCamPos - Input.Position);
+
+  float3 N_abs = abs(Input.Normal);
+  float3 Tangent;
+  if (N_abs.x > N_abs.y && N_abs.x > N_abs.z) {
+    Tangent = float3(0, 1, 0);
+  } else {
+    Tangent = float3(1, 0, 0);
+  }
+
+  float3 Binormal = normalize(cross(Tangent, Input.Normal));
+  Tangent = normalize(cross(Input.Normal, Binormal));
+
+  float3x3 world_to_tangent = float3x3(Tangent, Binormal, Input.Normal);
+  Output.LightDir = mul(world_to_tangent, Output.LightDir);
+  Output.ViewDir = mul(world_to_tangent, Output.ViewDir);
+
   return Output;
 }
 
 float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
-  float2 tex;
-  float3 N = normalize(Input.Normal);  
-  if (N.x > N.y && N.x > N.z) {
-    tex = Input.WorldPos.yz;
-  } else if (N.y > N.x && N.y > N.z) {
-    tex = Input.WorldPos.xz;
-  } else {
-    tex = Input.WorldPos.xy;
-  }
-  tex *= 2;
+  float3 colorX = g_tDiffuse.Sample(ssTrilinearRepeat, Input.WorldPos.yz*2);
+  float3 colorY = g_tDiffuse.Sample(ssTrilinearRepeat, Input.WorldPos.xz*2);
+  float3 colorZ = g_tDiffuse.Sample(ssTrilinearRepeat, Input.WorldPos.xy*2);
+  float3 normalX = g_tNormal.Sample(ssTrilinearRepeat, Input.WorldPos.yz*2);
+  float3 normalY = g_tNormal.Sample(ssTrilinearRepeat, Input.WorldPos.xz*2);
+  float3 normalZ = g_tNormal.Sample(ssTrilinearRepeat, Input.WorldPos.xy*2);
+  float3 N = normalize(Input.Normal);
+  float3 blend_weights = abs(N) - 0.2;
+  blend_weights *= 7;
+  blend_weights = pow(blend_weights, 3);
+  blend_weights = max(0, blend_weights);
+  blend_weights /= dot(blend_weights, 1);
+  float3 color = blend_weights.x*colorX + blend_weights.y*colorY + blend_weights.z*colorZ;
+  float3 normal = blend_weights.x*normalX + blend_weights.y*normalY + blend_weights.z*normalZ;
+
+  N = normalize(float3(normal.xy*2-1, normal.z));
   float3 L = normalize(Input.LightDir);
-  float3 H = L;
-  float4 coeffs = lit(dot(N, L), dot(N, H), 1);
-  float intensity = dot(coeffs, float4(0.01, 0.29, 0.7, 0));
-  float4 color = float4(Input.Normal*0.5+0.5, 0);  
+  float3 H = normalize(Input.ViewDir + Input.LightDir);
+  float4 coeffs = lit(dot(N, L), dot(N, H), 128);
+  float intensity = dot(coeffs, float4(0.05, 0.25, 0.7, 0));
+
+  //color = float4(Input.Tangent*0.5+0.5, 0);
   //float4 color = g_tDiffuse.Sample(ssTrilinearRepeat, tex);
   //float4 color = float4(0.6 + 0.4*N, 0);
-  return intensity*color;
+  //return intensity*float4(normalize(Input.Tangent)*0.5+0.5, 0);
+  color *= intensity;
+
+  float depth = Input.Depth.x / Input.Depth.y;
+  color = lerp(color, float3(0.176, 0.196, 0.667), saturate(depth - 0.99)*100);
+
+  return float4(color, 0);
 }
 
 RasterizerState rsWireframe {
   FillMode = WIREFRAME;
-  CullMode = NONE;
+  //CullMode = NONE;
 };
 
 technique10 RenderBlock {

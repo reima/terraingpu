@@ -36,9 +36,9 @@ struct BLOCK {
   ID3D10Buffer *pBlockTrisVB;
   D3DXVECTOR3 vBlockOffset;
 };
-const int BLOCKS_X = 6;
-const int BLOCKS_Y = 6;
-const int BLOCKS_Z = 6;
+const int BLOCKS_X = 8;
+const int BLOCKS_Y = 3;
+const int BLOCKS_Z = 8;
 const int NUM_BLOCKS = BLOCKS_X*BLOCKS_Y*BLOCKS_Z;
 BLOCK blocks[NUM_BLOCKS];
 ID3D10InputLayout *g_pBlockTrisIL;

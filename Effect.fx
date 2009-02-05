@@ -221,9 +221,32 @@ VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   float3 N_abs = abs(Input.Normal);
   float3 Tangent;
   if (N_abs.x > N_abs.y && N_abs.x > N_abs.z) {
-    Tangent = float3(0, 1, 0);
+    // x dominant
+    if (N_abs.y > N_abs.z) {
+      // other vertices of this primitive possibly y dominant
+      Tangent = float3(0, 0, 1);
+    } else {
+      // other vertices of this primitive possibly z dominant
+      Tangent = float3(0, 1, 0);
+    }
+  } else if (N_abs.y > N_abs.x && N_abs.y > N_abs.z) {
+    // y dominant
+    if (N_abs.x > N_abs.z) {
+      // other vertices of this primitive possibly x dominant
+      Tangent = float3(0, 0, 1);
+    } else {
+      // other vertices of this primitive possibly z dominant
+      Tangent = float3(1, 0, 0);
+    }
   } else {
-    Tangent = float3(1, 0, 0);
+    // z dominant
+    if (N_abs.x > N_abs.y) {
+      // other vertices of this primitive possibly x dominant
+      Tangent = float3(0, 1, 0);
+    } else {
+      // other vertices of this primitive possibly y dominant
+      Tangent = float3(1, 0, 0);
+    }
   }
 
   float3 Binormal = normalize(cross(Tangent, Input.Normal));
@@ -237,29 +260,29 @@ VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
 }
 
 float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
-  float3 colorX = g_tDiffuse.Sample(ssTrilinearRepeat, Input.WorldPos.yz*2);
-  float3 colorY = g_tDiffuse.Sample(ssTrilinearRepeat, Input.WorldPos.xz*2);
-  float3 colorZ = g_tDiffuse.Sample(ssTrilinearRepeat, Input.WorldPos.xy*2);
-  float3 normalX = g_tNormal.Sample(ssTrilinearRepeat, Input.WorldPos.yz*2);
-  float3 normalY = g_tNormal.Sample(ssTrilinearRepeat, Input.WorldPos.xz*2);
-  float3 normalZ = g_tNormal.Sample(ssTrilinearRepeat, Input.WorldPos.xy*2);
+  float3 colorX = g_tDiffuse.Sample(ssTrilinearRepeat, Input.WorldPos.yz*5);
+  float3 colorY = g_tDiffuse.Sample(ssTrilinearRepeat, Input.WorldPos.xz*5);
+  float3 colorZ = g_tDiffuse.Sample(ssTrilinearRepeat, Input.WorldPos.xy*5);
+  float3 normalX = g_tNormal.Sample(ssTrilinearRepeat, Input.WorldPos.yz*5)*2-1;
+  float3 normalY = g_tNormal.Sample(ssTrilinearRepeat, Input.WorldPos.xz*5)*2-1;
+  float3 normalZ = g_tNormal.Sample(ssTrilinearRepeat, Input.WorldPos.xy*5)*2-1;
   float3 N = normalize(Input.Normal);
-  float3 blend_weights = abs(N) - 0.2;
-  blend_weights *= 7;
-  blend_weights = pow(blend_weights, 3);
+  float3 blend_weights = abs(N) - 0.1;
+  blend_weights *= 12;
   blend_weights = max(0, blend_weights);
+  blend_weights = pow(blend_weights, 5);
   blend_weights /= dot(blend_weights, 1);
   float3 color = blend_weights.x*colorX + blend_weights.y*colorY + blend_weights.z*colorZ;
   float3 normal = blend_weights.x*normalX + blend_weights.y*normalY + blend_weights.z*normalZ;
 
-  N = normalize(float3(normal.xy*2-1, normal.z));
+  N = normalize(float3(normal.xy, 1));
   float3 L = normalize(Input.LightDir);
   float3 H = normalize(Input.ViewDir + Input.LightDir);
   float4 coeffs = lit(dot(N, L), dot(N, H), 128);
-  float intensity = dot(coeffs, float4(0.05, 0.25, 0.7, 0));
+  float intensity = dot(coeffs, float4(0.0, 0.0, 1.0, 0));
 
   //color = float4(Input.Tangent*0.5+0.5, 0);
-  //color = float4(0.6 + 0.4*N, 0);
+  color = float4(0.6 + 0.4*N, 0);
   //return intensity*float4(normalize(Input.Tangent)*0.5+0.5, 0);
   color *= intensity;
 

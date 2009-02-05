@@ -36,15 +36,17 @@ struct BLOCK {
   ID3D10Buffer *pBlockTrisVB;
   D3DXVECTOR3 vBlockOffset;
 };
-const int BLOCKS_X = 5;
-const int BLOCKS_Y = 5;
-const int BLOCKS_Z = 5;
+const int BLOCKS_X = 6;
+const int BLOCKS_Y = 6;
+const int BLOCKS_Z = 6;
 const int NUM_BLOCKS = BLOCKS_X*BLOCKS_Y*BLOCKS_Z;
 BLOCK blocks[NUM_BLOCKS];
 ID3D10InputLayout *g_pBlockTrisIL;
 
 UINT g_uiWidth, g_uiHeight;
 CFirstPersonCamera g_Camera;
+
+UINT64 g_nTris;
 
 void RenderDensityVolume(ID3D10Device *pd3dDevice) {
   D3D10_VIEWPORT viewport;
@@ -78,7 +80,19 @@ void GenTris(ID3D10Device *pd3dDevice, ID3D10Buffer *pTrisVB) {
 
   g_pDensitySRVar->SetResource(g_pDensitySRView);
   g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0);
+  D3D10_QUERY_DESC query_desc = {
+    D3D10_QUERY_SO_STATISTICS, 0
+  };
+  ID3D10Query *query;
+  pd3dDevice->CreateQuery(&query_desc, &query);
+  query->Begin();
   pd3dDevice->DrawInstanced(g_VoxelDimMinusOne*g_VoxelDimMinusOne, g_VoxelDimMinusOne, 0, 0);
+  query->End();
+  D3D10_QUERY_DATA_SO_STATISTICS query_data;
+  ZeroMemory(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS));
+  while (S_OK != query->GetData(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS), 0));
+  query->Release();
+  g_nTris += query_data.NumPrimitivesWritten;
 
   ID3D10Buffer *no_buffer = NULL;
   pd3dDevice->SOSetTargets(1, &no_buffer, &offsets);
@@ -279,7 +293,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   {
     D3D10_BUFFER_DESC buffer_desc;
     //buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(g_VoxelDimMinusOne*g_VoxelDimMinusOne*g_VoxelDimMinusOne*15); // Worst case
-    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(g_VoxelDimMinusOne*g_VoxelDimMinusOne*g_VoxelDimMinusOne*2); // Should suffice...
+    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(g_VoxelDimMinusOne*g_VoxelDimMinusOne*g_VoxelDimMinusOne*3); // Should suffice...
     buffer_desc.Usage = D3D10_USAGE_DEFAULT;
     buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
     buffer_desc.CPUAccessFlags = 0;
@@ -314,6 +328,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
                         (z-0.5f*BLOCKS_Z)*g_BlockSize);
       }
 
+  g_nTris = 0;
   for (int i = 0; i < NUM_BLOCKS; ++i) {
     CreateBlock(pd3dDevice, &blocks[i]);
   }

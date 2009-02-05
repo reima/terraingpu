@@ -259,8 +259,7 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   float intensity = dot(coeffs, float4(0.05, 0.25, 0.7, 0));
 
   //color = float4(Input.Tangent*0.5+0.5, 0);
-  //float4 color = g_tDiffuse.Sample(ssTrilinearRepeat, tex);
-  //float4 color = float4(0.6 + 0.4*N, 0);
+  //color = float4(0.6 + 0.4*N, 0);
   //return intensity*float4(normalize(Input.Tangent)*0.5+0.5, 0);
   color *= intensity;
 

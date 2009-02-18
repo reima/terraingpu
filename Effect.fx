@@ -279,10 +279,10 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   float3 L = normalize(Input.LightDir);
   float3 H = normalize(Input.ViewDir + Input.LightDir);
   float4 coeffs = lit(dot(N, L), dot(N, H), 128);
-  float intensity = dot(coeffs, float4(0.0, 0.0, 1.0, 0));
+  float intensity = dot(coeffs, float4(0.05, 0.45, 0.5, 0));
 
   //color = float4(Input.Tangent*0.5+0.5, 0);
-  color = float4(0.6 + 0.4*N, 0);
+  //color = float4(0.6 + 0.4*N, 0);
   //return intensity*float4(normalize(Input.Tangent)*0.5+0.5, 0);
   color *= intensity;
 

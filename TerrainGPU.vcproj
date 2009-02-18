@@ -50,8 +50,8 @@
 				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
 				RuntimeLibrary="3"
-				UsePrecompiledHeader="1"
-				PrecompiledHeaderThrough="DXUT.h"
+				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough=""
 				WarningLevel="4"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="4"
@@ -133,8 +133,8 @@
 				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
 				RuntimeLibrary="3"
-				UsePrecompiledHeader="1"
-				PrecompiledHeaderThrough="DXUT.h"
+				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough=""
 				WarningLevel="4"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="3"
@@ -218,8 +218,8 @@
 				ExceptionHandling="0"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
-				UsePrecompiledHeader="1"
-				PrecompiledHeaderThrough="DXUT.h"
+				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough=""
 				WarningLevel="4"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="3"
@@ -306,8 +306,8 @@
 				ExceptionHandling="0"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
-				UsePrecompiledHeader="1"
-				PrecompiledHeaderThrough="DXUT.h"
+				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough=""
 				WarningLevel="4"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="3"
@@ -393,8 +393,8 @@
 				ExceptionHandling="0"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
-				UsePrecompiledHeader="1"
-				PrecompiledHeaderThrough="DXUT.h"
+				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough=""
 				WarningLevel="4"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="3"
@@ -481,8 +481,8 @@
 				ExceptionHandling="0"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
-				UsePrecompiledHeader="1"
-				PrecompiledHeaderThrough="DXUT.h"
+				UsePrecompiledHeader="0"
+				PrecompiledHeaderThrough=""
 				WarningLevel="4"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="3"
@@ -663,6 +663,14 @@
 				>
 			</File>
 		</Filter>
+		<File
+			RelativePath=".\Block.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Block.h"
+			>
+		</File>
 		<File
 			RelativePath=".\TerrainGPU.cpp"
 			>

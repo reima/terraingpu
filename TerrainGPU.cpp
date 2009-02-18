@@ -3,122 +3,21 @@
 //--------------------------------------------------------------------------------------
 #include "DXUT.h"
 #include "DXUTcamera.h"
+#include "Block.h"
 #include <sstream>
-
-const UINT g_VoxelDim = 33;
-const UINT g_VoxelDimMinusOne = g_VoxelDim-1;
-const float g_InvVoxelDim = 1.0f/g_VoxelDim;
-const float g_InvVoxelDimMinusOne = 1.0f/g_VoxelDimMinusOne;
-const UINT g_Margin = 2;
-const UINT g_VoxelDimWithMargins = g_VoxelDim+2*g_Margin;
-const UINT g_VoxelDimWithMarginsMinusOne = g_VoxelDimWithMargins-1;
-const float g_InvVoxelDimWithMargins = 1.0f/g_VoxelDimWithMargins;
-const float g_InvVoxelDimWithMarginsMinusOne = 1.0f/g_VoxelDimWithMarginsMinusOne;
-const float g_BlockSize = 1.0f;
 
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
 ID3D10EffectVectorVariable *g_pCamPosEV;
-ID3D10EffectVectorVariable *g_pBlockOffsetEV;
 
-ID3D10Buffer *g_pScreenAlignedQuadVB;
-ID3D10InputLayout *g_pScreenAlignedQuadIL;
-
-ID3D10Texture3D *g_pDensityVolume;
-ID3D10RenderTargetView *g_pDensityRTView;
-ID3D10ShaderResourceView *g_pDensitySRView;
-ID3D10EffectShaderResourceVariable *g_pDensitySRVar;
-
-ID3D10Buffer *g_pBlockVoxelsVB;
-ID3D10InputLayout *g_pBlockVoxelsIL;
-
-struct BLOCK {
-  ID3D10Buffer *pBlockTrisVB;
-  D3DXVECTOR3 vBlockOffset;
-};
 const int BLOCKS_X = 8;
 const int BLOCKS_Y = 3;
 const int BLOCKS_Z = 8;
 const int NUM_BLOCKS = BLOCKS_X*BLOCKS_Y*BLOCKS_Z;
-BLOCK blocks[NUM_BLOCKS];
-ID3D10InputLayout *g_pBlockTrisIL;
+Block *blocks[NUM_BLOCKS];
 
 UINT g_uiWidth, g_uiHeight;
 CFirstPersonCamera g_Camera;
-
-UINT64 g_nTris;
-
-void RenderDensityVolume(ID3D10Device *pd3dDevice) {
-  D3D10_VIEWPORT viewport;
-  viewport.TopLeftX = 0;
-  viewport.TopLeftY = 0;
-  viewport.Width = g_VoxelDimWithMargins;
-  viewport.Height = g_VoxelDimWithMargins;
-  viewport.MinDepth = 0.0f;
-  viewport.MaxDepth = 1.0f;
-  pd3dDevice->RSSetViewports(1, &viewport);
-  pd3dDevice->OMSetRenderTargets(1, &g_pDensityRTView, NULL);
-
-  UINT strides = sizeof(D3DXVECTOR4);
-  UINT offsets = 0;
-  pd3dDevice->IASetVertexBuffers(0, 1, &g_pScreenAlignedQuadVB, &strides, &offsets);
-  pd3dDevice->IASetInputLayout(g_pScreenAlignedQuadIL);
-  pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-
-  g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(0)->Apply(0);
-  pd3dDevice->DrawInstanced(4, g_VoxelDimWithMargins, 0, 0);
-}
-
-void GenTris(ID3D10Device *pd3dDevice, ID3D10Buffer *pTrisVB) {
-  UINT strides = sizeof(UINT)*2;
-  UINT offsets = 0;
-  pd3dDevice->IASetVertexBuffers(0, 1, &g_pBlockVoxelsVB, &strides, &offsets);
-  pd3dDevice->IASetInputLayout(g_pBlockVoxelsIL);
-  pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
-  pd3dDevice->SOSetTargets(1, &pTrisVB, &offsets);
-  pd3dDevice->OMSetRenderTargets(0, NULL, NULL);
-
-  g_pDensitySRVar->SetResource(g_pDensitySRView);
-  g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0);
-  D3D10_QUERY_DESC query_desc = {
-    D3D10_QUERY_SO_STATISTICS, 0
-  };
-  ID3D10Query *query;
-  pd3dDevice->CreateQuery(&query_desc, &query);
-  query->Begin();
-  pd3dDevice->DrawInstanced(g_VoxelDimMinusOne*g_VoxelDimMinusOne, g_VoxelDimMinusOne, 0, 0);
-  query->End();
-  D3D10_QUERY_DATA_SO_STATISTICS query_data;
-  ZeroMemory(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS));
-  while (S_OK != query->GetData(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS), 0));
-  query->Release();
-  g_nTris += query_data.NumPrimitivesWritten;
-
-  ID3D10Buffer *no_buffer = NULL;
-  pd3dDevice->SOSetTargets(1, &no_buffer, &offsets);
-
-  // Get rid of DEVICE_OMSETRENDERTARGETS_HAZARD and DEVICE_VSSETSHADERRESOURCES_HAZARD by
-  // explicitly setting the resource slot to 0. But makes some unnecessary calls (VSSetShader etc.)
-  g_pDensitySRVar->SetResource(NULL);
-  g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0);
-}
-
-void CreateBlock(ID3D10Device *pd3dDevice, BLOCK *block) {
-  g_pBlockOffsetEV->SetFloatVector(block->vBlockOffset);
-  RenderDensityVolume(pd3dDevice);
-  GenTris(pd3dDevice, block->pBlockTrisVB);
-}
-
-void RenderBlock(ID3D10Device *pd3dDevice, const BLOCK &block) {
-  UINT strides = sizeof(D3DXVECTOR3)*2;
-  UINT offsets = 0;
-  pd3dDevice->IASetVertexBuffers(0, 1, &block.pBlockTrisVB, &strides, &offsets);
-  pd3dDevice->IASetInputLayout(g_pBlockTrisIL);
-  pd3dDevice->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-  g_pEffect->GetTechniqueByName("RenderBlock")->GetPassByIndex(0)->Apply(0);
-  pd3dDevice->DrawAuto();
-}
 
 //--------------------------------------------------------------------------------------
 // Reject any D3D10 devices that aren't acceptable by returning false
@@ -148,6 +47,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 {
   HRESULT hr;
 
+  Block::OnCreateDevice(pd3dDevice);
+
   // Load effect file
   ID3D10Blob *errors = NULL;
   hr = D3DX10CreateEffectFromFile(L"Effect.fx", NULL, NULL,
@@ -161,27 +62,10 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
     return hr;
   }
 
-  {
-    g_pEffect->GetVariableByName("BlockSize")->AsScalar()->SetFloat(g_BlockSize);
-    g_pEffect->GetVariableByName("VoxelDim")->AsScalar()->SetInt(g_VoxelDim);
-    g_pEffect->GetVariableByName("VoxelDimMinusOne")->AsScalar()->SetInt(g_VoxelDimMinusOne);
-    g_pEffect->GetVariableByName("Margin")->AsScalar()->SetInt(g_Margin);
-    g_pEffect->GetVariableByName("VoxelDimWithMargins")->AsScalar()->SetInt(g_VoxelDimWithMargins);
-    g_pEffect->GetVariableByName("VoxelDimWithMarginsMinusOne")->AsScalar()->SetInt(g_VoxelDimWithMarginsMinusOne);
-    D3DXVECTOR2 dummy(0, 0);
-    dummy.x = g_InvVoxelDim;
-    g_pEffect->GetVariableByName("InvVoxelDim")->AsVector()->SetFloatVector(dummy);
-    dummy.x = g_InvVoxelDimMinusOne;
-    g_pEffect->GetVariableByName("InvVoxelDimMinusOne")->AsVector()->SetFloatVector(dummy);
-    dummy.x = g_InvVoxelDimWithMargins;
-    g_pEffect->GetVariableByName("InvVoxelDimWithMargins")->AsVector()->SetFloatVector(dummy);
-    dummy.x = g_InvVoxelDimWithMarginsMinusOne;
-    g_pEffect->GetVariableByName("InvVoxelDimWithMarginsMinusOne")->AsVector()->SetFloatVector(dummy);
-  }
-
+  Block::OnLoadEffect(pd3dDevice, g_pEffect);
+  
   g_pWorldViewProjEV = g_pEffect->GetVariableByName("g_mWorldViewProj")->AsMatrix();
   g_pCamPosEV = g_pEffect->GetVariableByName("g_vCamPos")->AsVector();
-  g_pBlockOffsetEV = g_pEffect->GetVariableByName("g_vBlockOffset")->AsVector();
   {
     ID3D10ShaderResourceView *srview;
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-diffuse.jpg", NULL, NULL, &srview, NULL));
@@ -195,125 +79,6 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
     SAFE_RELEASE(srview);
   }
 
-  // Create density volume texture (including views)
-  D3D10_TEXTURE3D_DESC tex3d_desc;
-  tex3d_desc.Width = g_VoxelDimWithMargins;
-  tex3d_desc.Height = g_VoxelDimWithMargins;
-  tex3d_desc.Depth = g_VoxelDimWithMargins;
-  tex3d_desc.Format = DXGI_FORMAT_R16_FLOAT;
-  tex3d_desc.Usage = D3D10_USAGE_DEFAULT;
-  tex3d_desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
-  tex3d_desc.CPUAccessFlags = 0;
-  tex3d_desc.MiscFlags = 0;
-  tex3d_desc.MipLevels = 1;
-  V_RETURN(pd3dDevice->CreateTexture3D(&tex3d_desc, NULL, &g_pDensityVolume));
-
-  D3D10_RENDER_TARGET_VIEW_DESC rtv_desc;
-  rtv_desc.Format = tex3d_desc.Format;
-  rtv_desc.ViewDimension = D3D10_RTV_DIMENSION_TEXTURE3D;
-  rtv_desc.Texture3D.WSize = tex3d_desc.Depth;
-  rtv_desc.Texture3D.FirstWSlice = 0;
-  rtv_desc.Texture3D.MipSlice = 0;
-  V_RETURN(pd3dDevice->CreateRenderTargetView(g_pDensityVolume, &rtv_desc, &g_pDensityRTView));
-
-  D3D10_SHADER_RESOURCE_VIEW_DESC srv_desc;
-  srv_desc.Format = tex3d_desc.Format;
-  srv_desc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE3D;
-  srv_desc.Texture3D.MipLevels = tex3d_desc.MipLevels;
-  srv_desc.Texture3D.MostDetailedMip = 0;
-  V_RETURN(pd3dDevice->CreateShaderResourceView(g_pDensityVolume, &srv_desc, &g_pDensitySRView));
-
-  g_pDensitySRVar = g_pEffect->GetVariableByName("g_tDensityVolume")->AsShaderResource();
-
-  // Set up screen aligned quad vertex buffer and input layout
-  {
-    D3DXVECTOR4 quad_vertices[] = {
-      D3DXVECTOR4(-1.0f,  1.0f, 0.0f, 0.0f),
-      D3DXVECTOR4( 1.0f,  1.0f, 1.0f, 0.0f),
-      D3DXVECTOR4(-1.0f, -1.0f, 0.0f, 1.0f),
-      D3DXVECTOR4( 1.0f, -1.0f, 1.0f, 1.0f)
-    };
-    D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = 4*4*sizeof(float); // 4x (float2+float2)
-    buffer_desc.Usage = D3D10_USAGE_IMMUTABLE;
-    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-    buffer_desc.CPUAccessFlags = 0;
-    buffer_desc.MiscFlags = 0;
-    D3D10_SUBRESOURCE_DATA init_data;
-    init_data.pSysMem = quad_vertices;
-    init_data.SysMemPitch = 0;
-    init_data.SysMemSlicePitch = 0;
-    V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc, &init_data, &g_pScreenAlignedQuadVB));
-
-    D3D10_INPUT_ELEMENT_DESC input_elements[] = {
-      { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-      { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    };
-    UINT num_elements = sizeof(input_elements)/sizeof(input_elements[0]);
-    D3D10_PASS_DESC pass_desc;
-    g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(0)->GetDesc(&pass_desc);
-    V_RETURN(pd3dDevice->CreateInputLayout(input_elements, num_elements,
-                                           pass_desc.pIAInputSignature, pass_desc.IAInputSignatureSize,
-                                           &g_pScreenAlignedQuadIL));
-  }
-
-  // Set up per-block voxel vertex buffer and input layout
-  {
-    UINT voxels[g_VoxelDimMinusOne*g_VoxelDimMinusOne][2];
-    for (UINT i = 0; i < g_VoxelDimMinusOne; ++i) {
-      for (UINT j = 0; j < g_VoxelDimMinusOne; ++j) {
-        voxels[i+j*g_VoxelDimMinusOne][0] = i;
-        voxels[i+j*g_VoxelDimMinusOne][1] = j;
-      }
-    }
-    D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = sizeof(voxels);
-    buffer_desc.Usage = D3D10_USAGE_IMMUTABLE;
-    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-    buffer_desc.CPUAccessFlags = 0;
-    buffer_desc.MiscFlags = 0;
-    D3D10_SUBRESOURCE_DATA init_data;
-    init_data.pSysMem = voxels;
-    init_data.SysMemPitch = 0;
-    init_data.SysMemSlicePitch = 0;
-    V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc, &init_data, &g_pBlockVoxelsVB));
-
-    D3D10_INPUT_ELEMENT_DESC input_elements[] = {
-      { "POSITION", 0, DXGI_FORMAT_R32G32_UINT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    };
-    UINT num_elements = sizeof(input_elements)/sizeof(input_elements[0]);
-    D3D10_PASS_DESC pass_desc;
-    g_pEffect->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->GetDesc(&pass_desc);
-    V_RETURN(pd3dDevice->CreateInputLayout(input_elements, num_elements,
-                                           pass_desc.pIAInputSignature, pass_desc.IAInputSignatureSize,
-                                           &g_pBlockVoxelsIL));
-  }
-
-  // Set up per-block triangle vertex buffers and input layout
-  {
-    D3D10_BUFFER_DESC buffer_desc;
-    //buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(g_VoxelDimMinusOne*g_VoxelDimMinusOne*g_VoxelDimMinusOne*15); // Worst case
-    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(g_VoxelDimMinusOne*g_VoxelDimMinusOne*g_VoxelDimMinusOne*3); // Should suffice...
-    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
-    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
-    buffer_desc.CPUAccessFlags = 0;
-    buffer_desc.MiscFlags = 0;
-    for (int i = 0; i < NUM_BLOCKS; ++i) {
-      V_RETURN(pd3dDevice->CreateBuffer(&buffer_desc, NULL, &blocks[i].pBlockTrisVB));
-    }
-
-    D3D10_INPUT_ELEMENT_DESC input_elements[] = {
-      { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-      { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
-    };
-    UINT num_elements = sizeof(input_elements)/sizeof(input_elements[0]);
-    D3D10_PASS_DESC pass_desc;
-    g_pEffect->GetTechniqueByName("RenderBlock")->GetPassByIndex(0)->GetDesc(&pass_desc);
-    V_RETURN(pd3dDevice->CreateInputLayout(input_elements, num_elements,
-                                           pass_desc.pIAInputSignature, pass_desc.IAInputSignatureSize,
-                                           &g_pBlockTrisIL));
-  }
-
   D3DXVECTOR3 eye(0.0f, 1.0f, 0.0f);
   D3DXVECTOR3 lookat(1.0f, 1.0f, 0.0f);
   g_Camera.SetViewParams(&eye, &lookat);
@@ -322,16 +87,12 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   for (UINT x = 0; x < BLOCKS_X; ++x)
     for (UINT y = 0; y < BLOCKS_Y; ++y)
       for (UINT z = 0; z < BLOCKS_Z; ++z) {
-        blocks[x+y*BLOCKS_X+z*(BLOCKS_Y*BLOCKS_X)].vBlockOffset =
-            D3DXVECTOR3((x-0.5f*BLOCKS_X)*g_BlockSize,
-                        (y-0.5f*BLOCKS_Y)*g_BlockSize,
-                        (z-0.5f*BLOCKS_Z)*g_BlockSize);
-      }
-
-  g_nTris = 0;
-  for (int i = 0; i < NUM_BLOCKS; ++i) {
-    CreateBlock(pd3dDevice, &blocks[i]);
-  }
+        blocks[x+y*BLOCKS_X+z*(BLOCKS_Y*BLOCKS_X)] = new Block(
+            D3DXVECTOR3((x-0.5f*BLOCKS_X)*Block::kBlockSize,
+                        (y-0.5f*BLOCKS_Y)*Block::kBlockSize,
+                        (z-0.5f*BLOCKS_Z)*Block::kBlockSize), 1.0f);
+        blocks[x+y*BLOCKS_X+z*(BLOCKS_Y*BLOCKS_X)]->Generate(pd3dDevice);
+      }  
 
   return S_OK;
 }
@@ -389,8 +150,8 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
   g_pCamPosEV->SetFloatVector(*const_cast<D3DXVECTOR3 *>(g_Camera.GetEyePt()));
 
-  for (int i = 0; i < NUM_BLOCKS; ++i) {
-    RenderBlock(pd3dDevice, blocks[i]);
+  for (UINT i = 0; i < NUM_BLOCKS; ++i) {
+    blocks[i]->Draw(pd3dDevice, g_pEffect->GetTechniqueByName("RenderBlock"));
   }
 }
 
@@ -408,18 +169,12 @@ void CALLBACK OnD3D10ReleasingSwapChain( void* pUserContext )
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10DestroyDevice( void* pUserContext )
 {
-  SAFE_RELEASE(g_pDensityVolume);
-  SAFE_RELEASE(g_pDensityRTView);
-  SAFE_RELEASE(g_pDensitySRView);
-  SAFE_RELEASE(g_pScreenAlignedQuadVB);
-  SAFE_RELEASE(g_pScreenAlignedQuadIL);
-  SAFE_RELEASE(g_pBlockVoxelsVB);
-  SAFE_RELEASE(g_pBlockVoxelsIL);
   for (int i = 0; i < NUM_BLOCKS; ++i) {
-    SAFE_RELEASE(blocks[i].pBlockTrisVB);
+    SAFE_DELETE(blocks[i]);
   }
-  SAFE_RELEASE(g_pBlockTrisIL);
   SAFE_RELEASE(g_pEffect);
+
+  Block::OnDestroyDevice();
 }
 
 

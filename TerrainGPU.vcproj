@@ -672,6 +672,14 @@
 			>
 		</File>
 		<File
+			RelativePath=".\Octree.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\Octree.h"
+			>
+		</File>
+		<File
 			RelativePath=".\TerrainGPU.cpp"
 			>
 		</File>

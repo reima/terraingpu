@@ -7,7 +7,8 @@ class Block {
   ~Block(void);
   
   HRESULT Generate(ID3D10Device *device);
-  void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique);
+  void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const;
+  bool IsEmpty(void) const { return primitive_count_ == 0; }
 
   static HRESULT OnCreateDevice(ID3D10Device *device);
   static HRESULT OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect);
@@ -32,14 +33,14 @@ class Block {
 
   D3DXVECTOR3 position_;
   float size_;
-
-  static ID3D10Effect *effect_;
+  UINT64 primitive_count_;
 
   // Rendering resources
   ID3D10Buffer *vertex_buffer_;
   static ID3D10InputLayout *input_layout_;
 
   // Generation resources
+  static ID3D10Effect *effect_;
   static ID3D10Buffer *screen_aligned_quad_vb_;
   static ID3D10InputLayout *screen_aligned_quad_il_;
   static ID3D10Texture3D *density_volume_tex_;

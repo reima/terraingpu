@@ -26,7 +26,8 @@ ID3D10Effect *Block::effect_ = NULL;
 Block::Block(const D3DXVECTOR3 &position, float size)
     : position_(position),
       size_(size),
-      vertex_buffer_(NULL) {
+      vertex_buffer_(NULL),
+      primitive_count_(0) {
 }
 
 Block::~Block(void) {
@@ -104,16 +105,17 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   };
   ID3D10Query *query;
   device->CreateQuery(&query_desc, &query);
+
   query->Begin();
-
   device->DrawInstanced(kVoxelDimMinusOne*kVoxelDimMinusOne, kVoxelDimMinusOne, 0, 0);
-
   query->End();
+
   D3D10_QUERY_DATA_SO_STATISTICS query_data;
   ZeroMemory(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS));
   while (S_OK != query->GetData(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS), 0));
   query->Release();
-  //g_nTris += query_data.NumPrimitivesWritten;
+
+  primitive_count_ = query_data.NumPrimitivesWritten;
 
   ID3D10Buffer *no_buffer = NULL;
   device->SOSetTargets(1, &no_buffer, &offsets);
@@ -126,7 +128,7 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   return S_OK;
 }
 
-void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) {
+void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const {
   UINT strides = sizeof(D3DXVECTOR3)*2;
   UINT offsets = 0;
   device->IASetVertexBuffers(0, 1, &vertex_buffer_, &strides, &offsets);

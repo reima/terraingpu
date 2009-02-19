@@ -108,7 +108,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   g_uiHeight = pBackBufferSurfaceDesc->Height;
 
   float aspect = g_uiWidth / (float)g_uiHeight;
-  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 10.0f);
+  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 8.0f);
 
   return S_OK;
 }

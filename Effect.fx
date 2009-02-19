@@ -141,11 +141,7 @@ float3 GetEdgeOffset(int3 pos, int edge) {
   return (edgeStartCorner[edge] + (d1/(d1-d2))*edgeDirection[edge]);
 }
 
-GS_GENTRIS_OUTPUT CreateVertex(int3 vBlockPos, int nEdge) {
-  GS_GENTRIS_OUTPUT Output;
-  float3 vEdgePos = (vBlockPos + GetEdgeOffset(vBlockPos, nEdge));
-  float3 vVolumePos = (vEdgePos + Margin.xxx) * InvVoxelDimWithMargins.x;
-  Output.Position = g_vBlockOffset + vEdgePos * InvVoxelDimMinusOne.x * BlockSize;
+float3 GetNormal(float3 vVolumePos) {
   float3 grad;
   grad.x = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimWithMargins.xyy, 0) -
            g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimWithMargins.xyy, 0);
@@ -153,7 +149,15 @@ GS_GENTRIS_OUTPUT CreateVertex(int3 vBlockPos, int nEdge) {
            g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimWithMargins.yxy, 0);
   grad.z = g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos + InvVoxelDimWithMargins.yyx, 0) -
            g_tDensityVolume.SampleLevel(ssTrilinearClamp, vVolumePos - InvVoxelDimWithMargins.yyx, 0);
-  Output.Normal = -normalize(grad);
+  return -normalize(grad);
+}
+
+GS_GENTRIS_OUTPUT CreateVertex(int3 vBlockPos, int nEdge) {
+  GS_GENTRIS_OUTPUT Output;
+  float3 vEdgePos = (vBlockPos + GetEdgeOffset(vBlockPos, nEdge));
+  float3 vVolumePos = (vEdgePos + Margin.xxx) * InvVoxelDimWithMargins.x;
+  Output.Position = g_vBlockOffset + vEdgePos * InvVoxelDimMinusOne.x * BlockSize;
+  Output.Normal = GetNormal(vVolumePos);
   return Output;
 }
 

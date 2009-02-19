@@ -8,12 +8,12 @@ SamplerState ssTrilinearRepeat {
 };
 
 float Noise(float3 tex) {
-  return g_tNoise3D.Sample(ssTrilinearRepeat, tex*0.1).x*2-1;
+  return g_tNoise3D.SampleLevel(ssTrilinearRepeat, tex*0.1, 0).x*2-1;
 }
 
 float DENSITY(float3 Position) {
   //float density = 0.5 - length(Position);
-  float density = -Position.y+0.5;
+  float density = -Position.y;
   //float density = 0;
   float3 warp = float3(Noise(Position*0.004), Noise((Position+0.1)*0.004), Noise((Position+0.2)*0.004));
   Position += warp;

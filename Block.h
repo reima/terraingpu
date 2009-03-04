@@ -1,14 +1,32 @@
 #pragma once
 #include "DXUT.h"
+#include <functional>
+
+struct BLOCK_ID {
+  int x, y, z;
+};
+
+size_t std::tr1::hash<BLOCK_ID>::operator ()(const BLOCK_ID &id) const {
+  return ((static_cast<size_t>(id.y) & 0x0FF) << 24) |
+         ((static_cast<size_t>(id.x) & 0xFFF) << 12) |
+         ((static_cast<size_t>(id.z) & 0xFFF) <<  0);
+}
+
+bool std::equal_to<BLOCK_ID>::operator ()(const BLOCK_ID &left, const BLOCK_ID &right) const {
+  return left.x == right.x && left.y == right.y && left.z == right.z;
+}
 
 class Block {
  public:
-  Block(const D3DXVECTOR3 &position, float size);
+  Block(const D3DXVECTOR3 &position);
+  Block(const BLOCK_ID &id);
   ~Block(void);
   
   HRESULT Generate(ID3D10Device *device);
   void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const;
   bool IsEmpty(void) const { return primitive_count_ == 0; }
+
+  const BLOCK_ID &id(void) const { return id_; }
 
   static HRESULT OnCreateDevice(ID3D10Device *device);
   static HRESULT OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect);
@@ -32,7 +50,7 @@ class Block {
   HRESULT GenerateTriangles(ID3D10Device *device);
 
   D3DXVECTOR3 position_;
-  float size_;
+  BLOCK_ID id_;
   UINT64 primitive_count_;
 
   // Rendering resources

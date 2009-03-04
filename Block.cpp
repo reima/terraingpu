@@ -23,11 +23,22 @@ ID3D10EffectVectorVariable *Block::offset_ev_ = NULL;
 ID3D10EffectShaderResourceVariable *Block::density_volume_ev_ = NULL;
 ID3D10Effect *Block::effect_ = NULL;
 
-Block::Block(const D3DXVECTOR3 &position, float size)
+Block::Block(const D3DXVECTOR3 &position)
     : position_(position),
-      size_(size),
       vertex_buffer_(NULL),
       primitive_count_(0) {
+  id_.x = static_cast<int>(position.x);
+  id_.y = static_cast<int>(position.y);
+  id_.z = static_cast<int>(position.z);
+}
+
+Block::Block(const BLOCK_ID &id)
+    : id_(id),
+      vertex_buffer_(NULL),
+      primitive_count_(0) {
+  position_.x = static_cast<FLOAT>(id.x);
+  position_.y = static_cast<FLOAT>(id.y);
+  position_.z = static_cast<FLOAT>(id.z);
 }
 
 Block::~Block(void) {
@@ -117,6 +128,10 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
 
   primitive_count_ = query_data.NumPrimitivesWritten;
 
+  if (primitive_count_ == 0) {
+    SAFE_RELEASE(vertex_buffer_);
+  }
+
   ID3D10Buffer *no_buffer = NULL;
   device->SOSetTargets(1, &no_buffer, &offsets);
 
@@ -129,6 +144,7 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
 }
 
 void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const {
+  if (primitive_count_ == 0) return;
   UINT strides = sizeof(D3DXVECTOR3)*2;
   UINT offsets = 0;
   device->IASetVertexBuffers(0, 1, &vertex_buffer_, &strides, &offsets);

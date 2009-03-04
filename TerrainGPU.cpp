@@ -4,17 +4,18 @@
 #include "DXUT.h"
 #include "DXUTcamera.h"
 #include "Block.h"
+#include "Octree.h"
+#include <iostream>
 #include <sstream>
+#include <unordered_map>
 
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
 ID3D10EffectVectorVariable *g_pCamPosEV;
 
-const int BLOCKS_X = 8;
-const int BLOCKS_Y = 3;
-const int BLOCKS_Z = 8;
-const int NUM_BLOCKS = BLOCKS_X*BLOCKS_Y*BLOCKS_Z;
-Block *blocks[NUM_BLOCKS];
+Octree *octree;
+
+std::tr1::unordered_map<BLOCK_ID, Block *> alive_blocks;
 
 UINT g_uiWidth, g_uiHeight;
 CFirstPersonCamera g_Camera;
@@ -84,15 +85,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_Camera.SetViewParams(&eye, &lookat);
   g_Camera.SetScalers(0.01f, 0.5f);
 
-  for (UINT x = 0; x < BLOCKS_X; ++x)
-    for (UINT y = 0; y < BLOCKS_Y; ++y)
-      for (UINT z = 0; z < BLOCKS_Z; ++z) {
-        blocks[x+y*BLOCKS_X+z*(BLOCKS_Y*BLOCKS_X)] = new Block(
-            D3DXVECTOR3((x-0.5f*BLOCKS_X)*Block::kBlockSize,
-                        (y-0.5f*BLOCKS_Y)*Block::kBlockSize,
-                        (z-0.5f*BLOCKS_Z)*Block::kBlockSize), 1.0f);
-        blocks[x+y*BLOCKS_X+z*(BLOCKS_Y*BLOCKS_X)]->Generate(pd3dDevice);
-      }  
+  octree = new Octree(-4, -4, -4, 3);
+  octree->GenerateBlocks(pd3dDevice);
 
   return S_OK;
 }
@@ -150,9 +144,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
   g_pCamPosEV->SetFloatVector(*const_cast<D3DXVECTOR3 *>(g_Camera.GetEyePt()));
 
-  for (UINT i = 0; i < NUM_BLOCKS; ++i) {
-    blocks[i]->Draw(pd3dDevice, g_pEffect->GetTechniqueByName("RenderBlock"));
-  }
+  octree->Draw(pd3dDevice, g_pEffect->GetTechniqueByName("RenderBlock"));
 }
 
 
@@ -169,10 +161,8 @@ void CALLBACK OnD3D10ReleasingSwapChain( void* pUserContext )
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10DestroyDevice( void* pUserContext )
 {
-  for (int i = 0; i < NUM_BLOCKS; ++i) {
-    SAFE_DELETE(blocks[i]);
-  }
   SAFE_RELEASE(g_pEffect);
+  SAFE_DELETE(octree);
 
   Block::OnDestroyDevice();
 }

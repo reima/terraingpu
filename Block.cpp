@@ -23,10 +23,13 @@ ID3D10EffectVectorVariable *Block::offset_ev_ = NULL;
 ID3D10EffectShaderResourceVariable *Block::density_volume_ev_ = NULL;
 ID3D10Effect *Block::effect_ = NULL;
 
+Block::BLOCK_CACHE Block::cache_;
+
 Block::Block(const D3DXVECTOR3 &position)
     : position_(position),
       vertex_buffer_(NULL),
-      primitive_count_(0) {
+      primitive_count_(-1),
+      active_(false) {
   id_.x = static_cast<int>(position.x);
   id_.y = static_cast<int>(position.y);
   id_.z = static_cast<int>(position.z);
@@ -35,7 +38,8 @@ Block::Block(const D3DXVECTOR3 &position)
 Block::Block(const BLOCK_ID &id)
     : id_(id),
       vertex_buffer_(NULL),
-      primitive_count_(0) {
+      primitive_count_(-1),
+      active_(false) {
   position_.x = static_cast<FLOAT>(id.x);
   position_.y = static_cast<FLOAT>(id.y);
   position_.z = static_cast<FLOAT>(id.z);
@@ -45,7 +49,9 @@ Block::~Block(void) {
   SAFE_RELEASE(vertex_buffer_);
 }
 
-HRESULT Block::Generate(ID3D10Device *device) {
+HRESULT Block::Activate(ID3D10Device *device) {
+  if (active_) return S_OK;
+
   assert(offset_ev_ != NULL);
   HRESULT hr;
 
@@ -65,7 +71,17 @@ HRESULT Block::Generate(ID3D10Device *device) {
   V_RETURN(RenderDensityVolume(device));
   V_RETURN(GenerateTriangles(device));
 
+  if (IsEmpty()) Deactivate();
+
+  active_ = true;
+
   return S_OK;
+}
+
+void Block::Deactivate(void) {
+  if (!active_) return;
+  SAFE_RELEASE(vertex_buffer_);
+  active_ = false;
 }
 
 HRESULT Block::RenderDensityVolume(ID3D10Device *device) {
@@ -126,11 +142,7 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   while (S_OK != query->GetData(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS), 0));
   query->Release();
 
-  primitive_count_ = query_data.NumPrimitivesWritten;
-
-  if (primitive_count_ == 0) {
-    SAFE_RELEASE(vertex_buffer_);
-  }
+  primitive_count_ = static_cast<INT>(query_data.NumPrimitivesWritten);
 
   ID3D10Buffer *no_buffer = NULL;
   device->SOSetTargets(1, &no_buffer, &offsets);
@@ -319,4 +331,18 @@ void Block::OnDestroyDevice() {
   SAFE_RELEASE(density_volume_srv_);
   SAFE_RELEASE(voxel_slice_vb_);
   SAFE_RELEASE(voxel_slice_il_);
+
+  BLOCK_CACHE::const_iterator it;
+  for (it = cache_.begin(); it != cache_.end(); ++it) {
+    delete it->second;
+  }
+  cache_.clear();
+}
+
+Block *Block::GetBlockByID(const BLOCK_ID &id) {
+  BLOCK_CACHE::const_iterator it = cache_.find(id);
+  if (it != cache_.end()) return it->second;
+  Block *block = new Block(id);
+  cache_[id] = block;
+  return block;
 }

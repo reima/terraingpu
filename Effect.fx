@@ -212,6 +212,7 @@ struct VS_BLOCK_OUTPUT {
 
 Texture2D g_tDiffuse;
 Texture2D g_tNormal;
+Texture2D g_tBump;
 
 VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   VS_BLOCK_OUTPUT Output;
@@ -286,7 +287,7 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   float intensity = dot(coeffs, float4(0.05, 0.45, 0.5, 0));
 
   //color = float4(Input.Tangent*0.5+0.5, 0);
-  //color = float4(0.6 + 0.4*N, 0);
+  color = float4(0.6 + 0.4*normalize(Input.Normal), 0);
   //return intensity*float4(normalize(Input.Tangent)*0.5+0.5, 0);
   color *= intensity;
 

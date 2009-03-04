@@ -7,15 +7,13 @@
 #include "Octree.h"
 #include <iostream>
 #include <sstream>
-#include <unordered_map>
+#include <cmath>
 
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
 ID3D10EffectVectorVariable *g_pCamPosEV;
 
 Octree *octree;
-
-std::tr1::unordered_map<BLOCK_ID, Block *> alive_blocks;
 
 UINT g_uiWidth, g_uiHeight;
 CFirstPersonCamera g_Camera;
@@ -75,6 +73,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-normal.jpg", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tNormal")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-bump.jpg", NULL, NULL, &srview, NULL));
+    g_pEffect->GetVariableByName("g_tBump")->AsShaderResource()->SetResource(srview);
+    SAFE_RELEASE(srview);
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"NoiseVolume.dds", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tNoise3D")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
@@ -85,8 +86,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_Camera.SetViewParams(&eye, &lookat);
   g_Camera.SetScalers(0.01f, 0.5f);
 
-  octree = new Octree(-4, -4, -4, 3);
-  octree->GenerateBlocks(pd3dDevice);
+  octree = new Octree(-2, -2, -2, 2);
+  octree->ActivateBlocks(pd3dDevice);
 
   return S_OK;
 }

@@ -1,8 +1,12 @@
 #pragma once
 #include "DXUT.h"
 #include <functional>
+#include <unordered_map>
 
 struct BLOCK_ID {
+  BLOCK_ID(void) : x(0), y(0), z(0) {}
+  BLOCK_ID(int x, int y, int z) : x(x), y(y), z(z) {}
+
   int x, y, z;
 };
 
@@ -18,19 +22,20 @@ bool std::equal_to<BLOCK_ID>::operator ()(const BLOCK_ID &left, const BLOCK_ID &
 
 class Block {
  public:
-  Block(const D3DXVECTOR3 &position);
-  Block(const BLOCK_ID &id);
-  ~Block(void);
+  HRESULT Activate(ID3D10Device *device);
+  void Deactivate(void);
   
-  HRESULT Generate(ID3D10Device *device);
   void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const;
   bool IsEmpty(void) const { return primitive_count_ == 0; }
 
   const BLOCK_ID &id(void) const { return id_; }
+  bool active(void) const { return active_; }
 
   static HRESULT OnCreateDevice(ID3D10Device *device);
   static HRESULT OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect);
   static void OnDestroyDevice(void);
+
+  static Block *GetBlockByID(const BLOCK_ID &id);
 
   // Constants
   static const UINT kVoxelDim;
@@ -45,13 +50,18 @@ class Block {
   static const float kBlockSize;
 
  private:
+  Block(const D3DXVECTOR3 &position);
+  Block(const BLOCK_ID &id);
+  ~Block(void);
+
   // Generation steps
   HRESULT RenderDensityVolume(ID3D10Device *device);
   HRESULT GenerateTriangles(ID3D10Device *device);
 
   D3DXVECTOR3 position_;
   BLOCK_ID id_;
-  UINT64 primitive_count_;
+  INT primitive_count_;
+  bool active_;
 
   // Rendering resources
   ID3D10Buffer *vertex_buffer_;
@@ -68,4 +78,8 @@ class Block {
   static ID3D10Buffer *voxel_slice_vb_;
   static ID3D10InputLayout *voxel_slice_il_;
   static ID3D10EffectVectorVariable *offset_ev_;
+
+  // Block cache
+  typedef std::tr1::unordered_map<BLOCK_ID, Block *> BLOCK_CACHE;
+  static BLOCK_CACHE cache_;
 };

@@ -8,7 +8,8 @@ class Octree {
   Octree(INT base_x, INT base_y, INT base_z, UINT depth);
   ~Octree(void);
 
-  HRESULT GenerateBlocks(ID3D10Device *device);
+  void Relocate(INT base_x, INT base_y, INT base_z);
+  HRESULT ActivateBlocks(ID3D10Device *device);
   void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const;
 
  private:
@@ -26,6 +27,7 @@ class Octree {
   void Init(void);
 
   Block *block_;
+  bool is_empty_;
   Octree *children_[8];
   INT x_, y_, z_;
   UINT depth_;

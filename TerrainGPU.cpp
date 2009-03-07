@@ -86,7 +86,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_Camera.SetViewParams(&eye, &lookat);
   g_Camera.SetScalers(0.01f, 0.5f);
 
-  octree = new Octree(-2, -2, -2, 2);
+  octree = new Octree(-4, -4, -4, 3);
   octree->ActivateBlocks(pd3dDevice);
 
   return S_OK;
@@ -123,6 +123,10 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float fElapsedTime, void* pUserContext )
 {
+  const D3DXVECTOR3 *eye = g_Camera.GetEyePt();
+  octree->Relocate(std::floor(eye->x - 4 + 0.5f), std::floor(eye->y - 4 + 0.5f), std::floor(eye->z - 4 + 0.5f));
+  octree->ActivateBlocks(pd3dDevice);
+
   ID3D10RenderTargetView *rtv = DXUTGetD3D10RenderTargetView();
   ID3D10DepthStencilView *dsv = DXUTGetD3D10DepthStencilView();
   pd3dDevice->OMSetRenderTargets(1, &rtv, dsv);

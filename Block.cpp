@@ -17,11 +17,14 @@ ID3D10InputLayout *Block::screen_aligned_quad_il_ = NULL;
 ID3D10Texture3D *Block::density_volume_tex_ = NULL;
 ID3D10RenderTargetView *Block::density_volume_rtv_ = NULL;
 ID3D10ShaderResourceView *Block::density_volume_srv_ = NULL;
+ID3D10Buffer *Block::triangle_list_vb_ = NULL;
+ID3D10InputLayout *Block::triangle_list_il_ = NULL;
 ID3D10Buffer *Block::voxel_slice_vb_ = NULL;
 ID3D10InputLayout *Block::voxel_slice_il_ = NULL;
 ID3D10EffectVectorVariable *Block::offset_ev_ = NULL;
 ID3D10EffectShaderResourceVariable *Block::density_volume_ev_ = NULL;
 ID3D10Effect *Block::effect_ = NULL;
+ID3D10Query *Block::query_ = NULL;
 
 Block::BLOCK_CACHE Block::cache_;
 
@@ -66,7 +69,7 @@ HRESULT Block::Activate(ID3D10Device *device) {
     buffer_desc.MiscFlags = 0;
     V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &vertex_buffer_));
   }
-  
+
   offset_ev_->SetFloatVector(position_);
   V_RETURN(RenderDensityVolume(device));
   V_RETURN(GenerateTriangles(device));
@@ -113,37 +116,52 @@ HRESULT Block::RenderDensityVolume(ID3D10Device *device) {
 
 HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   assert(voxel_slice_vb_ != NULL);
+  assert(voxel_slice_il_ != NULL);
+  assert(triangle_list_vb_ != NULL);
+  assert(triangle_list_il_ != NULL);
   assert(density_volume_ev_ != NULL);
   assert(density_volume_srv_ != NULL);
 
+  //
+  // List Triangles (pass 1)
+  //
   UINT strides = sizeof(UINT)*2;
   UINT offsets = 0;
+  device->SOSetTargets(1, &triangle_list_vb_, &offsets);
   device->IASetVertexBuffers(0, 1, &voxel_slice_vb_, &strides, &offsets);
   device->IASetInputLayout(voxel_slice_il_);
   device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
-  device->SOSetTargets(1, &vertex_buffer_, &offsets);
   device->OMSetRenderTargets(0, NULL, NULL);
 
   density_volume_ev_->SetResource(density_volume_srv_);
   effect_->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0);
 
-  D3D10_QUERY_DESC query_desc = {
-    D3D10_QUERY_SO_STATISTICS, 0
-  };
-  ID3D10Query *query;
-  device->CreateQuery(&query_desc, &query);
-
-  query->Begin();
+  InitQuery(device);
   device->DrawInstanced(kVoxelDimMinusOne*kVoxelDimMinusOne, kVoxelDimMinusOne, 0, 0);
-  query->End();
+  primitive_count_ = static_cast<INT>(GetQueryResult());
 
-  D3D10_QUERY_DATA_SO_STATISTICS query_data;
-  ZeroMemory(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS));
-  while (S_OK != query->GetData(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS), 0));
-  query->Release();
+  if (primitive_count_ == 0) {
+    goto done;
+  }
 
-  primitive_count_ = static_cast<INT>(query_data.NumPrimitivesWritten);
+  //
+  // Generate triangles (pass 2)
+  //
+  strides = sizeof(UINT);
+  device->SOSetTargets(1, &vertex_buffer_, &offsets);
+  device->IASetVertexBuffers(0, 1, &triangle_list_vb_, &strides, &offsets);
+  device->IASetInputLayout(triangle_list_il_);
+  device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
+  device->OMSetRenderTargets(0, NULL, NULL);
 
+  effect_->GetTechniqueByName("GenBlock")->GetPassByIndex(2)->Apply(0);
+
+  device->DrawAuto();
+
+  //
+  // Reset
+  //
+done:
   ID3D10Buffer *no_buffer = NULL;
   device->SOSetTargets(1, &no_buffer, &offsets);
 
@@ -169,7 +187,7 @@ void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const {
 
 HRESULT Block::OnCreateDevice(ID3D10Device *device) {
   HRESULT hr;
-  
+
   //
   // Create density volume texture (including views)
   //
@@ -221,6 +239,19 @@ HRESULT Block::OnCreateDevice(ID3D10Device *device) {
     init_data.SysMemPitch = 0;
     init_data.SysMemSlicePitch = 0;
     V_RETURN(device->CreateBuffer(&buffer_desc, &init_data, &screen_aligned_quad_vb_));
+  }
+
+  //
+  // Create triangle list vertex buffer
+  //
+  {
+    D3D10_BUFFER_DESC buffer_desc;
+    buffer_desc.ByteWidth = sizeof(UINT)*(Block::kVoxelDimMinusOne*Block::kVoxelDimMinusOne*Block::kVoxelDimMinusOne*5);
+    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
+    buffer_desc.CPUAccessFlags = 0;
+    buffer_desc.MiscFlags = 0;
+    V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &triangle_list_vb_));
   }
 
   //
@@ -305,6 +336,19 @@ HRESULT Block::OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect) {
                                        &voxel_slice_il_));
   }
 
+  // Create triangle list input layout
+  {
+    D3D10_INPUT_ELEMENT_DESC input_elements[] = {
+      { "MARKER", 0, DXGI_FORMAT_R32_UINT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    UINT num_elements = sizeof(input_elements)/sizeof(input_elements[0]);
+    D3D10_PASS_DESC pass_desc;
+    effect->GetTechniqueByName("GenBlock")->GetPassByIndex(2)->GetDesc(&pass_desc);
+    V_RETURN(device->CreateInputLayout(input_elements, num_elements,
+                                       pass_desc.pIAInputSignature, pass_desc.IAInputSignatureSize,
+                                       &triangle_list_il_));
+  }
+
   // Create render input layout
   {
     D3D10_INPUT_ELEMENT_DESC input_elements[] = {
@@ -329,6 +373,8 @@ void Block::OnDestroyDevice() {
   SAFE_RELEASE(density_volume_tex_);
   SAFE_RELEASE(density_volume_rtv_);
   SAFE_RELEASE(density_volume_srv_);
+  SAFE_RELEASE(triangle_list_vb_);
+  SAFE_RELEASE(triangle_list_il_);
   SAFE_RELEASE(voxel_slice_vb_);
   SAFE_RELEASE(voxel_slice_il_);
 
@@ -345,4 +391,24 @@ Block *Block::GetBlockByID(const BLOCK_ID &id) {
   Block *block = new Block(id);
   cache_[id] = block;
   return block;
+}
+
+void Block::InitQuery(ID3D10Device *device) {
+  D3D10_QUERY_DESC query_desc = {
+    D3D10_QUERY_SO_STATISTICS, 0
+  };
+  device->CreateQuery(&query_desc, &query_);
+  query_->Begin();
+}
+
+UINT64 Block::GetQueryResult(void) {
+  query_->End();
+
+  D3D10_QUERY_DATA_SO_STATISTICS query_data;
+  ZeroMemory(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS));
+  while (S_OK != query_->GetData(&query_data, sizeof(D3D10_QUERY_DATA_SO_STATISTICS), 0));
+  query_->Release();
+  query_ = NULL;
+
+  return query_data.NumPrimitivesWritten;
 }

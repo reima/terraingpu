@@ -78,19 +78,18 @@ float Density_PS(GS_DENSITY_OUTPUT Input) : SV_Target {
 }
 
 
-struct VS_GENTRIS_INPUT {
+struct VS_LISTTRIS_INPUT {
   uint2 Position   : POSITION;
   uint  InstanceID : SV_InstanceID;
 };
 
-struct VS_GENTRIS_OUTPUT {
+struct VS_LISTTRIS_OUTPUT {
   uint3 Position   : POSITION;
   uint  Case       : CASE;
 };
 
-struct GS_GENTRIS_OUTPUT {
-  float3 Position  : POSITION;
-  float3 Normal    : NORMAL;
+struct GS_LISTTRIS_OUTPUT {
+  uint Marker : MARKER;
 };
 
 Texture3D g_tDensityVolume;
@@ -109,8 +108,7 @@ SamplerState ssTrilinearClamp {
   Filter = MIN_MAG_MIP_LINEAR;
 };
 
-
-VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
+VS_LISTTRIS_OUTPUT ListTris_VS(VS_LISTTRIS_INPUT Input) {
   int4 pos = int4(int3(Input.Position.xy, Input.InstanceID) + Margin.xxx, 0);
   float4 density0123;
   float4 density4567;
@@ -126,13 +124,51 @@ VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
   uint4 i0123 = (uint4)saturate(density0123*99999);
   uint4 i4567 = (uint4)saturate(density4567*99999);
 
-  VS_GENTRIS_OUTPUT Output;
+  VS_LISTTRIS_OUTPUT Output;
   Output.Case = (i0123.x << 0) | (i0123.y << 1) | (i0123.z << 2) | (i0123.w << 3) |
                 (i4567.x << 4) | (i4567.y << 5) | (i4567.z << 6) | (i4567.w << 7);
   Output.Position = int3(Input.Position.xy, Input.InstanceID);
 
   return Output;
 }
+
+[MaxVertexCount(5)]
+void ListTris_GS(point VS_LISTTRIS_OUTPUT Input[1],
+                 inout PointStream<GS_LISTTRIS_OUTPUT> Stream) {
+  const uint nTris = numTris[Input[0].Case];
+  const int3 vBlockPos = Input[0].Position;
+  GS_LISTTRIS_OUTPUT Output;
+  for (uint i = 0; i < nTris; ++i) {
+    const int3 edges = triTable[Input[0].Case][i];
+    Output.Marker = ((Input[0].Position.z & 0x3F) << 26) |
+                    ((Input[0].Position.y & 0x3F) << 20) |
+                    ((Input[0].Position.x & 0x3F) << 14) |
+                    ((edges[0] & 0x0F) << 8) |
+                    ((edges[1] & 0x0F) << 4) |
+                    ((edges[2] & 0x0F) << 0);
+    Stream.Append(Output);
+  }
+}
+
+
+
+struct VS_GENTRIS_INPUT {
+  uint Marker : MARKER;
+};
+
+struct VS_GENTRIS_OUTPUT {
+  float3 Position1  : POSITION1;
+  float3 Normal1    : NORMAL1;
+  float3 Position2  : POSITION2;
+  float3 Normal2    : NORMAL2;
+  float3 Position3  : POSITION3;
+  float3 Normal3    : NORMAL3;
+};
+
+struct GS_GENTRIS_OUTPUT {
+  float3 Position  : POSITION;
+  float3 Normal    : NORMAL;
+};
 
 float3 GetEdgeOffset(int3 pos, int edge) {
   pos += Margin.xxx;
@@ -152,27 +188,39 @@ float3 GetNormal(float3 vVolumePos) {
   return -normalize(grad);
 }
 
-GS_GENTRIS_OUTPUT CreateVertex(int3 vBlockPos, int nEdge) {
-  GS_GENTRIS_OUTPUT Output;
+void CreateVertex(int3 vBlockPos, int nEdge, out float3 vPosition, out float3 vNormal) {
   float3 vEdgePos = (vBlockPos + GetEdgeOffset(vBlockPos, nEdge));
   float3 vVolumePos = (vEdgePos + Margin.xxx) * InvVoxelDimWithMargins.x;
-  Output.Position = g_vBlockOffset + vEdgePos * InvVoxelDimMinusOne.x * BlockSize;
-  Output.Normal = GetNormal(vVolumePos);
+  vPosition = g_vBlockOffset + vEdgePos * InvVoxelDimMinusOne.x * BlockSize;
+  vNormal = GetNormal(vVolumePos);
+}
+
+VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
+  VS_GENTRIS_OUTPUT Output;
+  const int3 vBlockPos = int3((Input.Marker >> 14) & 0x3F,
+                              (Input.Marker >> 20) & 0x3F,
+                              (Input.Marker >> 26) & 0x3F);
+  CreateVertex(vBlockPos, (Input.Marker >> 8) & 0x0F, Output.Position1, Output.Normal1);
+  CreateVertex(vBlockPos, (Input.Marker >> 4) & 0x0F, Output.Position2, Output.Normal2);
+  CreateVertex(vBlockPos, (Input.Marker >> 0) & 0x0F, Output.Position3, Output.Normal3);
+
   return Output;
 }
 
-[MaxVertexCount(15)]
+[MaxVertexCount(3)]
 void GenTris_GS(point VS_GENTRIS_OUTPUT Input[1],
                 inout TriangleStream<GS_GENTRIS_OUTPUT> Stream) {
-  const uint nTris = numTris[Input[0].Case];
-  const int3 vBlockPos = Input[0].Position;
-  for (uint i = 0; i < nTris; ++i) {
-    const int3 edges = triTable[Input[0].Case][i];
-    Stream.Append(CreateVertex(vBlockPos, edges.x));
-    Stream.Append(CreateVertex(vBlockPos, edges.y));
-    Stream.Append(CreateVertex(vBlockPos, edges.z));
-    Stream.RestartStrip();
-  }
+  GS_GENTRIS_OUTPUT Output;
+  Output.Position = Input[0].Position1;
+  Output.Normal   = Input[0].Normal1;
+  Stream.Append(Output);
+  Output.Position = Input[0].Position2;
+  Output.Normal   = Input[0].Normal2;
+  Stream.Append(Output);
+  Output.Position = Input[0].Position3;
+  Output.Normal   = Input[0].Normal3;
+  Stream.Append(Output);
+  Stream.RestartStrip();
 }
 
 DepthStencilState dssDisableDepthStencil {
@@ -187,6 +235,12 @@ technique10 GenBlock {
     SetPixelShader(CompileShader(ps_4_0, Density_PS()));
     SetDepthStencilState(dssDisableDepthStencil, 0);
     SetRasterizerState(NULL);
+  }
+  pass list_triangles {
+    SetVertexShader(CompileShader(vs_4_0, ListTris_VS()));
+    SetGeometryShader(ConstructGSWithSO(CompileShader(gs_4_0, ListTris_GS()), "MARKER.x"));
+    SetPixelShader(NULL);
+    SetDepthStencilState(dssDisableDepthStencil, 0);
   }
   pass gen_vertices {
     SetVertexShader(CompileShader(vs_4_0, GenTris_VS()));

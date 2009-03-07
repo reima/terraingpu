@@ -58,6 +58,10 @@ class Block {
   HRESULT RenderDensityVolume(ID3D10Device *device);
   HRESULT GenerateTriangles(ID3D10Device *device);
 
+  // Helper methods for stream-out-query
+  static void InitQuery(ID3D10Device *device);
+  static UINT64 GetQueryResult(void);
+
   D3DXVECTOR3 position_;
   BLOCK_ID id_;
   INT primitive_count_;
@@ -75,9 +79,12 @@ class Block {
   static ID3D10RenderTargetView *density_volume_rtv_;
   static ID3D10ShaderResourceView *density_volume_srv_;
   static ID3D10EffectShaderResourceVariable *density_volume_ev_;
+  static ID3D10Buffer *triangle_list_vb_;
+  static ID3D10InputLayout *triangle_list_il_;
   static ID3D10Buffer *voxel_slice_vb_;
   static ID3D10InputLayout *voxel_slice_il_;
   static ID3D10EffectVectorVariable *offset_ev_;
+  static ID3D10Query *query_;
 
   // Block cache
   typedef std::tr1::unordered_map<BLOCK_ID, Block *> BLOCK_CACHE;

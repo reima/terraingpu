@@ -17,7 +17,7 @@ float DENSITY(float3 Position) {
   //float density = 0;
   float3 warp = float3(Noise(Position*0.004), Noise((Position+0.1)*0.004), Noise((Position+0.2)*0.004))*4;
   Position += warp;
-  density += Noise(Position*0.1)*10.00;
+  //density += Noise(Position*0.1)*10.00;
   density += Noise(Position*1.01)*1.00;
   density += Noise(Position*1.96)*0.50;
   density += Noise(Position*4.03)*0.25;

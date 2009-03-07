@@ -78,6 +78,7 @@ float Density_PS(GS_DENSITY_OUTPUT Input) : SV_Target {
 }
 
 
+
 struct VS_LISTTRIS_INPUT {
   uint2 Position   : POSITION;
   uint  InstanceID : SV_InstanceID;
@@ -140,6 +141,7 @@ void ListTris_GS(point VS_LISTTRIS_OUTPUT Input[1],
   GS_LISTTRIS_OUTPUT Output;
   for (uint i = 0; i < nTris; ++i) {
     const int3 edges = triTable[Input[0].Case][i];
+    // Warning: This only works with VoxelDim 33 (or less)!
     Output.Marker = ((Input[0].Position.z & 0x3F) << 26) |
                     ((Input[0].Position.y & 0x3F) << 20) |
                     ((Input[0].Position.x & 0x3F) << 14) |
@@ -274,7 +276,8 @@ VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   Output.Depth = Output.Position.zw;
   Output.Normal = Input.Normal;
   Output.WorldPos = Input.Position;
-  Output.LightDir = normalize(g_vCamPos - Input.Position);
+  //Output.LightDir = normalize(g_vCamPos - Input.Position);
+  Output.LightDir = normalize(float3(1, 1, 0));
   Output.ViewDir = normalize(g_vCamPos - Input.Position);
 
   float3 N_abs = abs(Input.Normal);
@@ -337,16 +340,17 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   N = normalize(float3(normal.xy, 1));
   float3 L = normalize(Input.LightDir);
   float3 H = normalize(Input.ViewDir + Input.LightDir);
-  float4 coeffs = lit(dot(N, L), dot(N, H), 128);
-  float intensity = dot(coeffs, float4(0.05, 0.45, 0.5, 0));
+  float4 coeffs = lit(dot(N, L), dot(N, H), 32);
+  float intensity = dot(coeffs, float4(0.05, 0.45, 0.25, 0));
 
   //color = float4(Input.Tangent*0.5+0.5, 0);
   color = float4(0.6 + 0.4*normalize(Input.Normal), 0);
   //return intensity*float4(normalize(Input.Tangent)*0.5+0.5, 0);
   color *= intensity;
 
+  // Fog
   float depth = Input.Depth.x / Input.Depth.y;
-  color = lerp(color, float3(0.176, 0.196, 0.667), saturate(depth - 0.99)*100);
+  color = lerp(color, float3(0.176, 0.196, 0.667), saturate(depth - 0.995)*200);
 
   return float4(color, 0);
 }

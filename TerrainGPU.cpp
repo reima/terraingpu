@@ -84,7 +84,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   D3DXVECTOR3 eye(0.0f, 1.0f, 0.0f);
   D3DXVECTOR3 lookat(1.0f, 1.0f, 0.0f);
   g_Camera.SetViewParams(&eye, &lookat);
-  g_Camera.SetScalers(0.01f, 0.5f);
+  g_Camera.SetScalers(0.01f, 1.0f);
 
   octree = new Octree(-4, -4, -4, 3);
   octree->ActivateBlocks(pd3dDevice);
@@ -103,7 +103,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   g_uiHeight = pBackBufferSurfaceDesc->Height;
 
   float aspect = g_uiWidth / (float)g_uiHeight;
-  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 8.0f);
+  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 3.6f);
 
   return S_OK;
 }

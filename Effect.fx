@@ -90,7 +90,7 @@ struct VS_LISTTRIS_OUTPUT {
 };
 
 struct GS_LISTTRIS_OUTPUT {
-  uint Marker : MARKER;
+  uint Marker : MARKER; // z6_y6_x6_edge1_edge2_edge3
 };
 
 Texture3D g_tDensityVolume;
@@ -155,7 +155,7 @@ void ListTris_GS(point VS_LISTTRIS_OUTPUT Input[1],
 
 
 struct VS_GENTRIS_INPUT {
-  uint Marker : MARKER;
+  uint Marker : MARKER; // z6_y6_x6_edge1_edge2_edge3
 };
 
 struct VS_GENTRIS_OUTPUT {
@@ -247,6 +247,156 @@ technique10 GenBlock {
   pass gen_vertices {
     SetVertexShader(CompileShader(vs_4_0, GenTris_VS()));
     SetGeometryShader(ConstructGSWithSO(CompileShader(gs_4_0, GenTris_GS()), "POSITION.xyz; NORMAL.xyz"));
+    SetPixelShader(NULL);
+    SetDepthStencilState(dssDisableDepthStencil, 0);
+  }
+}
+
+
+struct VS_LISTCELLS_INPUT {
+  uint2 Position   : POSITION;
+  uint  InstanceID : SV_InstanceID;
+};
+
+struct VS_LISTCELLS_OUTPUT {
+  uint Cell : CELL; // z8_y8_x8_case8
+};
+
+struct GS_LISTCELLS_OUTPUT {
+  uint Cell : CELL; // z8_y8_x8_case8
+};
+
+VS_LISTCELLS_OUTPUT ListCells_VS(VS_LISTCELLS_INPUT Input) {
+  int4 pos = int4(int3(Input.Position.xy, Input.InstanceID) + Margin.xxx, 0);
+  float4 density0123;
+  float4 density4567;
+  density0123.x = g_tDensityVolume.Load(pos + int4(0, 0, 0, 0), 0);
+  density0123.y = g_tDensityVolume.Load(pos + int4(0, 1, 0, 0), 0);
+  density0123.z = g_tDensityVolume.Load(pos + int4(1, 1, 0, 0), 0);
+  density0123.w = g_tDensityVolume.Load(pos + int4(1, 0, 0, 0), 0);
+  density4567.x = g_tDensityVolume.Load(pos + int4(0, 0, 1, 0), 0);
+  density4567.y = g_tDensityVolume.Load(pos + int4(0, 1, 1, 0), 0);
+  density4567.z = g_tDensityVolume.Load(pos + int4(1, 1, 1, 0), 0);
+  density4567.w = g_tDensityVolume.Load(pos + int4(1, 0, 1, 0), 0);
+
+  uint4 i0123 = (uint4)saturate(density0123*99999);
+  uint4 i4567 = (uint4)saturate(density4567*99999);
+
+  VS_LISTCELLS_OUTPUT Output;
+  uint nCase = (i0123.x << 0) | (i0123.y << 1) | (i0123.z << 2) | (i0123.w << 3) |
+               (i4567.x << 4) | (i4567.y << 5) | (i4567.z << 6) | (i4567.w << 7);
+  int3 vPosition = int3(Input.Position.xy, Input.InstanceID);
+  Output.Cell = ((vPosition.z & 0xFF) << 24) |
+                ((vPosition.y & 0xFF) << 16) |
+                ((vPosition.x & 0xFF) <<  8) |
+                nCase;
+
+  return Output;
+}
+
+[MaxVertexCount(1)]
+void ListCells_GS(point VS_LISTCELLS_OUTPUT Input[1],
+                 inout PointStream<GS_LISTCELLS_OUTPUT> Stream) {
+  if (numTris[Input[0].Cell & 0xFF] > 0) {
+    Stream.Append(Input[0]);
+  }
+}
+
+
+struct VS_LISTVERTS_INPUT {
+  uint Cell : CELL; // z8_y8_x8_case8
+};
+
+struct VS_LISTVERTS_OUTPUT {
+  uint Cell : CELL; // z8_y8_x8_edgeflags8
+};
+
+const uint EDGE0 = 0x02;  // 00010b
+const uint EDGE3 = 0x08;  // 01000b
+const uint EDGE8 = 0x10;  // 10000b
+
+struct GS_LISTVERTS_OUTPUT {
+  uint Edge : EDGE; // z8_y8_x8_null4_edge4
+};
+
+VS_LISTVERTS_OUTPUT ListVerts_VS(VS_LISTVERTS_INPUT Input) {
+  uint edgeFlags = (Input.Cell & 0xFF) ^ ((Input.Cell & 1) * (EDGE0 | EDGE3 | EDGE8));
+  Input.Cell = (Input.Cell & 0xFFFFFF00) | edgeFlags;
+  return Input;
+}
+
+[MaxVertexCount(3)]
+void ListVerts_GS(point VS_LISTVERTS_OUTPUT Input[1],
+                 inout PointStream<GS_LISTVERTS_OUTPUT> Stream) {
+  GS_LISTVERTS_OUTPUT Output;
+  uint pos = Input[0].Cell & 0xFFFFFF00;
+  if (Input[0].Cell & EDGE0) {
+    Output.Edge = pos | 0;
+    Stream.Append(Output);
+  }
+  if (Input[0].Cell & EDGE3) {
+    Output.Edge = pos | 3;
+    Stream.Append(Output);
+  }
+  if (Input[0].Cell & EDGE8) {
+    Output.Edge = pos | 8;
+    Stream.Append(Output);
+  }
+}
+
+
+struct VS_GENVERTS_INPUT {
+  uint Edge : EDGE; // z8_y8_x8_null4_edge4
+};
+
+struct VS_GENVERTS_OUTPUT {
+  float3 Position  : POSITION;
+  float3 Normal    : NORMAL;
+};
+
+struct GS_GENVERTS_OUTPUT {
+  float3 Position  : POSITION;
+  float3 Normal    : NORMAL;
+};
+
+VS_GENVERTS_OUTPUT GenVerts_VS(VS_GENVERTS_INPUT Input) {
+  VS_GENVERTS_OUTPUT Output;
+  const int3 vBlockPos = int3((Input.Edge >>  8) & 0xFF,
+                              (Input.Edge >> 16) & 0xFF,
+                              (Input.Edge >> 24) & 0xFF);
+  CreateVertex(vBlockPos, Input.Edge & 0x0F, Output.Position, Output.Normal);
+  return Output;
+}
+
+[MaxVertexCount(1)]
+void GenVerts_GS(point VS_GENVERTS_OUTPUT Input[1],
+                 inout PointStream<GS_GENVERTS_OUTPUT> Stream) {
+  Stream.Append(Input[0]);
+}
+
+technique10 GenBlock3 {
+  pass build_densities {
+    SetVertexShader(CompileShader(vs_4_0, Density_VS()));
+    SetGeometryShader(CompileShader(gs_4_0, Density_GS()));
+    SetPixelShader(CompileShader(ps_4_0, Density_PS()));
+    SetDepthStencilState(dssDisableDepthStencil, 0);
+    SetRasterizerState(NULL);
+  }
+  pass list_nonempty_cells {
+    SetVertexShader(CompileShader(vs_4_0, ListCells_VS()));
+    SetGeometryShader(ConstructGSWithSO(CompileShader(gs_4_0, ListCells_GS()), "CELL.x"));
+    SetPixelShader(NULL);
+    SetDepthStencilState(dssDisableDepthStencil, 0);
+  }
+  pass list_verts_to_generate {
+    SetVertexShader(CompileShader(vs_4_0, ListVerts_VS()));
+    SetGeometryShader(ConstructGSWithSO(CompileShader(gs_4_0, ListVerts_GS()), "EDGE.x"));
+    SetPixelShader(NULL);
+    SetDepthStencilState(dssDisableDepthStencil, 0);
+  }
+  pass gen_vertices {
+    SetVertexShader(CompileShader(vs_4_0, GenVerts_VS()));
+    SetGeometryShader(ConstructGSWithSO(CompileShader(gs_4_0, GenVerts_GS()), "POSITION.xyz; NORMAL.xyz"));
     SetPixelShader(NULL);
     SetDepthStencilState(dssDisableDepthStencil, 0);
   }

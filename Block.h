@@ -81,6 +81,10 @@ class Block {
   static ID3D10EffectShaderResourceVariable *density_volume_ev_;
   static ID3D10Buffer *triangle_list_vb_;
   static ID3D10InputLayout *triangle_list_il_;
+  static ID3D10Buffer *cells_vb_;
+  static ID3D10InputLayout *cells_il_;
+  static ID3D10Buffer *edges_vb_;
+  static ID3D10InputLayout *edges_il_;
   static ID3D10Buffer *voxel_slice_vb_;
   static ID3D10InputLayout *voxel_slice_il_;
   static ID3D10EffectVectorVariable *offset_ev_;

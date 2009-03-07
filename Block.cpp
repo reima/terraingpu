@@ -1,5 +1,7 @@
 #include "Block.h"
 
+#define METHOD 2
+
 const UINT Block::kVoxelDim = 33;
 const UINT Block::kVoxelDimMinusOne = Block::kVoxelDim-1;
 const float Block::kInvVoxelDim = 1.0f/Block::kVoxelDim;
@@ -19,6 +21,10 @@ ID3D10RenderTargetView *Block::density_volume_rtv_ = NULL;
 ID3D10ShaderResourceView *Block::density_volume_srv_ = NULL;
 ID3D10Buffer *Block::triangle_list_vb_ = NULL;
 ID3D10InputLayout *Block::triangle_list_il_ = NULL;
+ID3D10Buffer *Block::cells_vb_ = NULL;
+ID3D10InputLayout *Block::cells_il_ = NULL;
+ID3D10Buffer *Block::edges_vb_ = NULL;
+ID3D10InputLayout *Block::edges_il_ = NULL;
 ID3D10Buffer *Block::voxel_slice_vb_ = NULL;
 ID3D10InputLayout *Block::voxel_slice_il_ = NULL;
 ID3D10EffectVectorVariable *Block::offset_ev_ = NULL;
@@ -112,6 +118,7 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
 
   HRESULT hr;
 
+#if METHOD == 2
   //
   // List Triangles (pass 1)
   //
@@ -160,6 +167,69 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   V_RETURN(effect_->GetTechniqueByName("GenBlock")->GetPassByIndex(2)->Apply(0));
 
   device->DrawAuto();
+#elif METHOD == 3
+  //
+  // List non-empty cells (pass 1)
+  //
+  UINT strides = sizeof(UINT)*2;
+  UINT offsets = 0;
+  device->SOSetTargets(1, &cells_vb_, &offsets);
+  device->IASetVertexBuffers(0, 1, &voxel_slice_vb_, &strides, &offsets);
+  device->IASetInputLayout(voxel_slice_il_);
+  device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
+  device->OMSetRenderTargets(0, NULL, NULL);
+
+  V_RETURN(density_volume_ev_->SetResource(density_volume_srv_));
+  V_RETURN(effect_->GetTechniqueByName("GenBlock3")->GetPassByIndex(1)->Apply(0));
+
+  InitQuery(device);
+  device->DrawInstanced(kVoxelDimMinusOne*kVoxelDimMinusOne, kVoxelDimMinusOne, 0, 0);
+  if (GetQueryResult() == 0) {
+    goto done;
+  }
+
+  //
+  // List edges (pass 2)
+  //
+  strides = sizeof(UINT);
+  device->SOSetTargets(1, &edges_vb_, &offsets);
+  device->IASetVertexBuffers(0, 1, &cells_vb_, &strides, &offsets);
+  device->IASetInputLayout(cells_il_);
+  device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
+  device->OMSetRenderTargets(0, NULL, NULL);
+
+  V_RETURN(effect_->GetTechniqueByName("GenBlock3")->GetPassByIndex(2)->Apply(0));
+
+  InitQuery(device);
+  device->DrawAuto();
+  primitive_count_ = (UINT)GetQueryResult();
+
+  //
+  // Create vertex buffer
+  //
+  {
+    D3D10_BUFFER_DESC buffer_desc;
+    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3) * 3*primitive_count_;
+    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
+    buffer_desc.CPUAccessFlags = 0;
+    buffer_desc.MiscFlags = 0;
+    V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &vertex_buffer_));
+  }
+
+  //
+  // Generate vertices (pass 3)
+  //
+  strides = sizeof(UINT);
+  device->SOSetTargets(1, &vertex_buffer_, &offsets);
+  device->IASetVertexBuffers(0, 1, &edges_vb_, &strides, &offsets);
+  device->IASetInputLayout(edges_il_);
+  device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
+  device->OMSetRenderTargets(0, NULL, NULL);
+
+  V_RETURN(effect_->GetTechniqueByName("GenBlock3")->GetPassByIndex(3)->Apply(0));
+  device->DrawAuto();
+#endif
 
   //
   // Reset
@@ -177,12 +247,16 @@ done:
 }
 
 void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const {
-  if (primitive_count_ == 0) return;
+  if (primitive_count_ <= 0) return;
   UINT strides = sizeof(D3DXVECTOR3)*2;
   UINT offsets = 0;
   device->IASetVertexBuffers(0, 1, &vertex_buffer_, &strides, &offsets);
   device->IASetInputLayout(input_layout_);
+#if METHOD == 2
   device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+#elif METHOD == 3
+  device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
+#endif
 
   technique->GetPassByIndex(0)->Apply(0);
   device->DrawAuto();
@@ -255,6 +329,32 @@ HRESULT Block::OnCreateDevice(ID3D10Device *device) {
     buffer_desc.CPUAccessFlags = 0;
     buffer_desc.MiscFlags = 0;
     V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &triangle_list_vb_));
+  }
+
+  //
+  // Create cell list vertex buffer
+  //
+  {
+    D3D10_BUFFER_DESC buffer_desc;
+    buffer_desc.ByteWidth = sizeof(UINT)*(Block::kVoxelDim*Block::kVoxelDim*Block::kVoxelDim); // Extra row in x, y, z!
+    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
+    buffer_desc.CPUAccessFlags = 0;
+    buffer_desc.MiscFlags = 0;
+    V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &cells_vb_));
+  }
+
+  //
+  // Create edge list vertex buffer
+  //
+  {
+    D3D10_BUFFER_DESC buffer_desc;
+    buffer_desc.ByteWidth = sizeof(UINT)*3*(Block::kVoxelDim*Block::kVoxelDim*Block::kVoxelDim);
+    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
+    buffer_desc.CPUAccessFlags = 0;
+    buffer_desc.MiscFlags = 0;
+    V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &edges_vb_));
   }
 
   //
@@ -352,6 +452,32 @@ HRESULT Block::OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect) {
                                        &triangle_list_il_));
   }
 
+  // Create cell list input layout
+  {
+    D3D10_INPUT_ELEMENT_DESC input_elements[] = {
+      { "CELL", 0, DXGI_FORMAT_R32_UINT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    UINT num_elements = sizeof(input_elements)/sizeof(input_elements[0]);
+    D3D10_PASS_DESC pass_desc;
+    effect->GetTechniqueByName("GenBlock3")->GetPassByIndex(2)->GetDesc(&pass_desc);
+    V_RETURN(device->CreateInputLayout(input_elements, num_elements,
+                                       pass_desc.pIAInputSignature, pass_desc.IAInputSignatureSize,
+                                       &cells_il_));
+  }
+
+  // Create edge list input layout
+  {
+    D3D10_INPUT_ELEMENT_DESC input_elements[] = {
+      { "EDGE", 0, DXGI_FORMAT_R32_UINT, 0, D3D10_APPEND_ALIGNED_ELEMENT, D3D10_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    UINT num_elements = sizeof(input_elements)/sizeof(input_elements[0]);
+    D3D10_PASS_DESC pass_desc;
+    effect->GetTechniqueByName("GenBlock3")->GetPassByIndex(3)->GetDesc(&pass_desc);
+    V_RETURN(device->CreateInputLayout(input_elements, num_elements,
+                                       pass_desc.pIAInputSignature, pass_desc.IAInputSignatureSize,
+                                       &edges_il_));
+  }
+
   // Create render input layout
   {
     D3D10_INPUT_ELEMENT_DESC input_elements[] = {
@@ -378,6 +504,10 @@ void Block::OnDestroyDevice() {
   SAFE_RELEASE(density_volume_srv_);
   SAFE_RELEASE(triangle_list_vb_);
   SAFE_RELEASE(triangle_list_il_);
+  SAFE_RELEASE(cells_vb_);
+  SAFE_RELEASE(cells_il_);
+  SAFE_RELEASE(edges_vb_);
+  SAFE_RELEASE(edges_il_);
   SAFE_RELEASE(voxel_slice_vb_);
   SAFE_RELEASE(voxel_slice_il_);
 

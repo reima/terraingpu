@@ -58,18 +58,6 @@ HRESULT Block::Activate(ID3D10Device *device) {
   assert(offset_ev_ != NULL);
   HRESULT hr;
 
-  // Create vertex buffer
-  {
-    D3D10_BUFFER_DESC buffer_desc;
-    //buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(Block::kVoxelDimMinusOne*Block::kVoxelDimMinusOne*Block::kVoxelDimMinusOne*15); // Worst case
-    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3)*(Block::kVoxelDimMinusOne*Block::kVoxelDimMinusOne*Block::kVoxelDimMinusOne*3); // Should suffice...
-    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
-    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
-    buffer_desc.CPUAccessFlags = 0;
-    buffer_desc.MiscFlags = 0;
-    V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &vertex_buffer_));
-  }
-
   offset_ev_->SetFloatVector(position_);
   V_RETURN(RenderDensityVolume(device));
   V_RETURN(GenerateTriangles(device));
@@ -122,6 +110,8 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   assert(density_volume_ev_ != NULL);
   assert(density_volume_srv_ != NULL);
 
+  HRESULT hr;
+
   //
   // List Triangles (pass 1)
   //
@@ -133,8 +123,8 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
   device->OMSetRenderTargets(0, NULL, NULL);
 
-  density_volume_ev_->SetResource(density_volume_srv_);
-  effect_->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0);
+  V_RETURN(density_volume_ev_->SetResource(density_volume_srv_));
+  V_RETURN(effect_->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0));
 
   InitQuery(device);
   device->DrawInstanced(kVoxelDimMinusOne*kVoxelDimMinusOne, kVoxelDimMinusOne, 0, 0);
@@ -142,6 +132,19 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
 
   if (primitive_count_ == 0) {
     goto done;
+  }
+
+  //
+  // Create vertex buffer
+  //
+  {
+    D3D10_BUFFER_DESC buffer_desc;
+    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3) * 3*primitive_count_;
+    buffer_desc.Usage = D3D10_USAGE_DEFAULT;
+    buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
+    buffer_desc.CPUAccessFlags = 0;
+    buffer_desc.MiscFlags = 0;
+    V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &vertex_buffer_));
   }
 
   //
@@ -154,7 +157,7 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_POINTLIST);
   device->OMSetRenderTargets(0, NULL, NULL);
 
-  effect_->GetTechniqueByName("GenBlock")->GetPassByIndex(2)->Apply(0);
+  V_RETURN(effect_->GetTechniqueByName("GenBlock")->GetPassByIndex(2)->Apply(0));
 
   device->DrawAuto();
 
@@ -167,8 +170,8 @@ done:
 
   // Get rid of DEVICE_OMSETRENDERTARGETS_HAZARD and DEVICE_VSSETSHADERRESOURCES_HAZARD by
   // explicitly setting the resource slot to 0. But makes some unnecessary calls (VSSetShader etc.)
-  density_volume_ev_->SetResource(NULL);
-  effect_->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0);
+  V_RETURN(density_volume_ev_->SetResource(NULL));
+  V_RETURN(effect_->GetTechniqueByName("GenBlock")->GetPassByIndex(1)->Apply(0));
 
   return S_OK;
 }

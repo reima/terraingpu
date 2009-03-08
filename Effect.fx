@@ -190,8 +190,8 @@ float3 GetNormal(float3 vVolumePos) {
   return -normalize(grad);
 }
 
-void CreateVertex(int3 vBlockPos, int nEdge, out float3 vPosition, out float3 vNormal) {
-  float3 vEdgePos = (vBlockPos + GetEdgeOffset(vBlockPos, nEdge));
+void CreateVertex(int3 vCellPos, int nEdge, out float3 vPosition, out float3 vNormal) {
+  float3 vEdgePos = (vCellPos + GetEdgeOffset(vCellPos, nEdge));
   float3 vVolumePos = (vEdgePos + Margin.xxx) * InvVoxelDimWithMargins.x;
   vPosition = g_vBlockOffset + vEdgePos * InvVoxelDimMinusOne.x * BlockSize;
   vNormal = GetNormal(vVolumePos);
@@ -199,12 +199,12 @@ void CreateVertex(int3 vBlockPos, int nEdge, out float3 vPosition, out float3 vN
 
 VS_GENTRIS_OUTPUT GenTris_VS(VS_GENTRIS_INPUT Input) {
   VS_GENTRIS_OUTPUT Output;
-  const int3 vBlockPos = int3((Input.Marker >> 14) & 0x3F,
-                              (Input.Marker >> 20) & 0x3F,
-                              (Input.Marker >> 26) & 0x3F);
-  CreateVertex(vBlockPos, (Input.Marker >> 8) & 0x0F, Output.Position1, Output.Normal1);
-  CreateVertex(vBlockPos, (Input.Marker >> 4) & 0x0F, Output.Position2, Output.Normal2);
-  CreateVertex(vBlockPos, (Input.Marker >> 0) & 0x0F, Output.Position3, Output.Normal3);
+  const int3 vCellPos = int3((Input.Marker >> 14) & 0x3F,
+                             (Input.Marker >> 20) & 0x3F,
+                             (Input.Marker >> 26) & 0x3F);
+  CreateVertex(vCellPos, (Input.Marker >> 8) & 0x0F, Output.Position1, Output.Normal1);
+  CreateVertex(vCellPos, (Input.Marker >> 4) & 0x0F, Output.Position2, Output.Normal2);
+  CreateVertex(vCellPos, (Input.Marker >> 0) & 0x0F, Output.Position3, Output.Normal3);
 
   return Output;
 }
@@ -330,18 +330,18 @@ void ListVerts_GS(point VS_LISTVERTS_OUTPUT Input[1],
                  inout PointStream<GS_LISTVERTS_OUTPUT> Stream) {
   GS_LISTVERTS_OUTPUT Output;
   uint pos = Input[0].Cell & 0xFFFFFF00;
-  if (Input[0].Cell & EDGE0) {
-    Output.Edge = pos | 0;
-    Stream.Append(Output);
-  }
-  if (Input[0].Cell & EDGE3) {
+  //if (Input[0].Cell & EDGE3) {
     Output.Edge = pos | 3;
     Stream.Append(Output);
-  }
-  if (Input[0].Cell & EDGE8) {
+  //}
+  //if (Input[0].Cell & EDGE0) {
+    Output.Edge = pos | 0;
+    Stream.Append(Output);
+  //}
+  //if (Input[0].Cell & EDGE8) {
     Output.Edge = pos | 8;
     Stream.Append(Output);
-  }
+  //}
 }
 
 
@@ -361,10 +361,10 @@ struct GS_GENVERTS_OUTPUT {
 
 VS_GENVERTS_OUTPUT GenVerts_VS(VS_GENVERTS_INPUT Input) {
   VS_GENVERTS_OUTPUT Output;
-  const int3 vBlockPos = int3((Input.Edge >>  8) & 0xFF,
-                              (Input.Edge >> 16) & 0xFF,
-                              (Input.Edge >> 24) & 0xFF);
-  CreateVertex(vBlockPos, Input.Edge & 0x0F, Output.Position, Output.Normal);
+  const int3 vCellPos = int3((Input.Edge >>  8) & 0xFF,
+                             (Input.Edge >> 16) & 0xFF,
+                             (Input.Edge >> 24) & 0xFF);
+  CreateVertex(vCellPos, Input.Edge & 0x0F, Output.Position, Output.Normal);
   return Output;
 }
 
@@ -397,6 +397,128 @@ technique10 GenBlock3 {
   pass gen_vertices {
     SetVertexShader(CompileShader(vs_4_0, GenVerts_VS()));
     SetGeometryShader(ConstructGSWithSO(CompileShader(gs_4_0, GenVerts_GS()), "POSITION.xyz; NORMAL.xyz"));
+    SetPixelShader(NULL);
+    SetDepthStencilState(dssDisableDepthStencil, 0);
+  }
+}
+
+
+struct VS_SPLATIDS_INPUT {
+  uint Edge       : EDGE; // z8_y8_x8_null4_edge4
+  uint VertexID   : SV_VertexID;
+};
+
+struct VS_SPLATIDS_OUTPUT {
+  float4 Position      : POSITION;
+  uint   VertexID      : VERTEXID;
+  uint   RTIndex       : RTINDEX;
+};
+
+struct GS_SPLATIDS_OUTPUT {
+  float4 Position      : SV_Position;
+  uint   VertexID      : VERTEXID;
+  uint   RTIndex       : SV_RenderTargetArrayIndex;
+};
+
+VS_SPLATIDS_OUTPUT SplatIDs_VS(VS_SPLATIDS_INPUT Input) {
+  VS_SPLATIDS_OUTPUT Output;
+  int3 vCellPos = int3((Input.Edge >>  8) & 0xFF,
+                       (Input.Edge >> 16) & 0xFF,
+                       (Input.Edge >> 24) & 0xFF);
+  const int nEdge = Input.Edge & 0x0F;
+
+  vCellPos.x *= 3;
+  switch (nEdge) {
+    case 3: vCellPos.x += 0; break;
+    case 0: vCellPos.x += 1; break;
+    case 8: vCellPos.x += 2; break;
+  }
+  float2 xy = vCellPos.xy;
+  xy.x += 0.5;
+  xy.y += 0.5;
+  xy.x *= InvVoxelDim.x/3.0;
+  xy.y *= InvVoxelDim.x;
+
+  Output.Position = float4(xy, 0.5, 1);
+  Output.Position.xy = Output.Position.xy * 2 - 1; // [-1..1] range
+  Output.Position.y *= -1; // flip y
+
+  Output.VertexID = Input.VertexID;
+  Output.RTIndex = vCellPos.z;
+
+  return Output;
+}
+
+[MaxVertexCount(1)]
+void SplatIDs_GS(point VS_SPLATIDS_OUTPUT Input[1],
+                 inout PointStream<GS_SPLATIDS_OUTPUT> Stream) {
+  Stream.Append(Input[0]);
+}
+
+uint SplatIDs_PS(GS_SPLATIDS_OUTPUT Input) : SV_Target {
+  return Input.VertexID;
+}
+
+
+struct VS_GENINDICES_INPUT {
+  uint Cell : CELL; // z8_y8_x8_case8
+};
+
+struct VS_GENINDICES_OUTPUT {
+  uint Cell : CELL; // z8_y8_x8_case8
+};
+
+struct GS_GENINDICES_OUTPUT {
+  uint Index : INDEX;
+};
+
+Texture3D<uint> g_tIndicesVolume;
+
+VS_GENINDICES_OUTPUT GenIndices_VS(VS_GENINDICES_INPUT Input) {
+  return Input;
+}
+
+[MaxVertexCount(15)]
+void GenIndices_GS(point VS_GENINDICES_OUTPUT Input[1],
+                   inout PointStream<GS_GENINDICES_OUTPUT> Stream) {
+  const uint nCase = Input[0].Cell & 0xFF;
+  const uint nTris = numTris[nCase];
+  const int3 vCellPos = int3((Input[0].Cell >>  8) & 0xFF,
+                             (Input[0].Cell >> 16) & 0xFF,
+                             (Input[0].Cell >> 24) & 0xFF);
+  if (vCellPos.x == VoxelDimMinusOne.x || vCellPos.y == VoxelDimMinusOne.x || vCellPos.z == VoxelDimMinusOne.x) return;
+  GS_GENINDICES_OUTPUT Output;
+  int3 vEdgePos;
+  for (uint i = 0; i < nTris; ++i) {
+    const int3 edges = triTable[nCase][i];
+    vEdgePos = vCellPos + edgeStartCorner[edges.x];
+    vEdgePos.x = vEdgePos.x*3 + edgeAxis[edges.x];
+    Output.Index = g_tIndicesVolume.Load(int4(vEdgePos, 0));
+    Stream.Append(Output);
+
+    vEdgePos = vCellPos + edgeStartCorner[edges.y];
+    vEdgePos.x = vEdgePos.x*3 + edgeAxis[edges.y];
+    Output.Index = g_tIndicesVolume.Load(int4(vEdgePos, 0));
+    Stream.Append(Output);
+
+    vEdgePos = vCellPos + edgeStartCorner[edges.z];
+    vEdgePos.x = vEdgePos.x*3 + edgeAxis[edges.z];
+    Output.Index = g_tIndicesVolume.Load(int4(vEdgePos, 0));
+    Stream.Append(Output);
+  }
+}
+
+technique10 GenIndices {
+  pass splat_vertex_ids {
+    SetVertexShader(CompileShader(vs_4_0, SplatIDs_VS()));
+    SetGeometryShader(CompileShader(gs_4_0, SplatIDs_GS()));
+    SetPixelShader(CompileShader(ps_4_0, SplatIDs_PS()));
+    SetDepthStencilState(dssDisableDepthStencil, 0);
+    SetRasterizerState(NULL);
+  }
+  pass gen_indices {
+    SetVertexShader(CompileShader(vs_4_0, GenIndices_VS()));
+    SetGeometryShader(ConstructGSWithSO(CompileShader(gs_4_0, GenIndices_GS()), "INDEX.x"));
     SetPixelShader(NULL);
     SetDepthStencilState(dssDisableDepthStencil, 0);
   }

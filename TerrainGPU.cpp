@@ -50,8 +50,13 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   // Load effect file
   ID3D10Blob *errors = NULL;
+  UINT flags = D3D10_SHADER_ENABLE_STRICTNESS;
+#if defined(DEBUG) | defined(_DEBUG)
+  flags |= D3D10_SHADER_DEBUG;
+  flags |= D3D10_SHADER_SKIP_OPTIMIZATION;
+#endif
   hr = D3DX10CreateEffectFromFile(L"Effect.fx", NULL, NULL,
-                                  "fx_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0,
+                                  "fx_4_0", flags, 0,
                                   pd3dDevice, NULL, NULL,
                                   &g_pEffect, &errors, NULL);
   if (FAILED(hr)) {
@@ -62,7 +67,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   }
 
   Block::OnLoadEffect(pd3dDevice, g_pEffect);
-  
+
   g_pWorldViewProjEV = g_pEffect->GetVariableByName("g_mWorldViewProj")->AsMatrix();
   g_pCamPosEV = g_pEffect->GetVariableByName("g_vCamPos")->AsVector();
   {

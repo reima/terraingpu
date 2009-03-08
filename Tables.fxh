@@ -1858,6 +1858,11 @@ const int3 edgeDirection[12] = {
   int3(0, 0, 1),
 };
 
+// x = 0, y = 1, z = 2
+const int edgeAxis[12] = {
+  1, 0, 1, 0, 1, 0, 1, 0, 2, 2, 2, 2
+};
+
 const float3 poissonRays[32] = {
   float3(0.286582, 0.257763, -0.922729),
   float3(-0.171812, -0.888079, 0.426375),

@@ -2,6 +2,7 @@
 #include "DXUT.h"
 #include <functional>
 #include <unordered_map>
+#include <queue>
 
 struct BLOCK_ID {
   BLOCK_ID(void) : x(0), y(0), z(0) {}
@@ -24,7 +25,7 @@ class Block {
  public:
   HRESULT Activate(ID3D10Device *device);
   void Deactivate(void);
-  
+
   void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const;
   bool IsEmpty(void) const { return primitive_count_ == 0; }
 
@@ -69,6 +70,7 @@ class Block {
 
   // Rendering resources
   ID3D10Buffer *vertex_buffer_;
+  ID3D10Buffer *index_buffer_;
   static ID3D10InputLayout *input_layout_;
 
   // Generation resources
@@ -79,6 +81,10 @@ class Block {
   static ID3D10RenderTargetView *density_volume_rtv_;
   static ID3D10ShaderResourceView *density_volume_srv_;
   static ID3D10EffectShaderResourceVariable *density_volume_ev_;
+  static ID3D10Texture3D *indices_volume_tex_;
+  static ID3D10RenderTargetView *indices_volume_rtv_;
+  static ID3D10ShaderResourceView *indices_volume_srv_;
+  static ID3D10EffectShaderResourceVariable *indices_volume_ev_;
   static ID3D10Buffer *triangle_list_vb_;
   static ID3D10InputLayout *triangle_list_il_;
   static ID3D10Buffer *cells_vb_;
@@ -93,4 +99,8 @@ class Block {
   // Block cache
   typedef std::tr1::unordered_map<BLOCK_ID, Block *> BLOCK_CACHE;
   static BLOCK_CACHE cache_;
+
+  // Activation queue
+  typedef std::queue<Block *> BLOCK_QUEUE;
+  static BLOCK_QUEUE activation_queue_;
 };

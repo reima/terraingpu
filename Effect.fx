@@ -33,8 +33,12 @@ SamplerState ssTrilinearRepeat {
 
 #include "BlockGen.fxh"
 
-Texture2D g_tDiffuse;
-Texture2D g_tNormal;
+Texture2D g_tDiffuseX;
+Texture2D g_tDiffuseY;
+Texture2D g_tDiffuseZ;
+Texture2D g_tNormalX;
+Texture2D g_tNormalY;
+Texture2D g_tNormalZ;
 Texture2D g_tBump;
 
 VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
@@ -89,16 +93,16 @@ VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
 }
 
 float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
-  float2 texX = Input.WorldPos.yz*5;
-  float2 texY = Input.WorldPos.xz*5;
-  float2 texZ = Input.WorldPos.xy*5;
+  float2 texX = Input.WorldPos.yz*2;
+  float2 texY = Input.WorldPos.xz*2;
+  float2 texZ = Input.WorldPos.xy*2;
 
-  float3 colorX = g_tDiffuse.Sample(ssTrilinearRepeat, texX);
-  float3 colorY = g_tDiffuse.Sample(ssTrilinearRepeat, texY);
-  float3 colorZ = g_tDiffuse.Sample(ssTrilinearRepeat, texZ);
-  float3 normalX = g_tNormal.Sample(ssTrilinearRepeat, texX)*2-1;
-  float3 normalY = g_tNormal.Sample(ssTrilinearRepeat, texY)*2-1;
-  float3 normalZ = g_tNormal.Sample(ssTrilinearRepeat, texZ)*2-1;
+  float3 colorX = g_tDiffuseX.Sample(ssTrilinearRepeat, texX);
+  float3 colorY = g_tDiffuseY.Sample(ssTrilinearRepeat, texY);
+  float3 colorZ = g_tDiffuseZ.Sample(ssTrilinearRepeat, texZ);
+  float3 normalX = g_tNormalX.Sample(ssTrilinearRepeat, texX)*2-1;
+  float3 normalY = g_tNormalY.Sample(ssTrilinearRepeat, texY)*2-1;
+  float3 normalZ = g_tNormalZ.Sample(ssTrilinearRepeat, texZ)*2-1;
   float3 N = normalize(Input.Normal);
   float3 blend_weights = abs(N) - 0.1;
   blend_weights *= 12;
@@ -115,7 +119,7 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   float intensity = dot(coeffs, float4(0.05, 0.45, 0.25, 0));
 
   //color = float4(Input.Tangent*0.5+0.5, 0);
-  color = float4(0.6 + 0.4*normalize(Input.Normal), 0);
+  //color = float4(0.6 + 0.4*normalize(Input.Normal), 0);
   //return intensity*float4(normalize(Input.Tangent)*0.5+0.5, 0);
   color *= intensity;
 

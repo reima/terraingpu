@@ -61,7 +61,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   V_RETURN(D3DX10CreateFont(pd3dDevice, 15, 0, FW_BOLD, 1, FALSE,
                             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                            L"Arial", &g_pFont));
+                            L"Tahoma", &g_pFont));
   g_pTxtHelper = new CDXUTTextHelper(NULL, NULL, g_pFont, g_pSprite, 15);
 
   // Load effect file
@@ -88,11 +88,19 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_pCamPosEV = g_pEffect->GetVariableByName("g_vCamPos")->AsVector();
   {
     ID3D10ShaderResourceView *srview;
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-diffuse.jpg", NULL, NULL, &srview, NULL));
+    g_pEffect->GetVariableByName("g_tDiffuseX")->AsShaderResource()->SetResource(srview);
+    g_pEffect->GetVariableByName("g_tDiffuseZ")->AsShaderResource()->SetResource(srview);
+    SAFE_RELEASE(srview);
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-diffuse.jpg", NULL, NULL, &srview, NULL));
-    g_pEffect->GetVariableByName("g_tDiffuse")->AsShaderResource()->SetResource(srview);
+    g_pEffect->GetVariableByName("g_tDiffuseY")->AsShaderResource()->SetResource(srview);
+    SAFE_RELEASE(srview);
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-normal.jpg", NULL, NULL, &srview, NULL));
+    g_pEffect->GetVariableByName("g_tNormalX")->AsShaderResource()->SetResource(srview);
+    g_pEffect->GetVariableByName("g_tNormalZ")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-normal.jpg", NULL, NULL, &srview, NULL));
-    g_pEffect->GetVariableByName("g_tNormal")->AsShaderResource()->SetResource(srview);
+    g_pEffect->GetVariableByName("g_tNormalY")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-bump.jpg", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tBump")->AsShaderResource()->SetResource(srview);
@@ -175,7 +183,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
 
   g_pTxtHelper->Begin();
   g_pTxtHelper->SetInsertionPos(5, 5);
-  g_pTxtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 0.0f, 1.0f));
+  g_pTxtHelper->SetForegroundColor(D3DXCOLOR(0.5f, 0.5f, 1.0f, 1.0f));
   g_pTxtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
   g_pTxtHelper->DrawTextLine(DXUTGetDeviceStats());
   WCHAR sz[100];

@@ -215,7 +215,7 @@
 				AdditionalIncludeDirectories="DXUT\Core;DXUT\Optional"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;D3DXFX_LARGEADDRESS_HANDLE"
 				StringPooling="true"
-				ExceptionHandling="0"
+				ExceptionHandling="1"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"

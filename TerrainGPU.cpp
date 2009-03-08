@@ -120,6 +120,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
 void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext )
 {
   g_Camera.FrameMove(fElapsedTime);
+  Block::OnFrameMove(fElapsedTime);
 }
 
 

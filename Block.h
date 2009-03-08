@@ -23,7 +23,7 @@ bool std::equal_to<BLOCK_ID>::operator ()(const BLOCK_ID &left, const BLOCK_ID &
 
 class Block {
  public:
-  HRESULT Activate(ID3D10Device *device);
+  void Activate(void);
   void Deactivate(void);
 
   void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const;
@@ -35,6 +35,7 @@ class Block {
   static HRESULT OnCreateDevice(ID3D10Device *device);
   static HRESULT OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect);
   static void OnDestroyDevice(void);
+  static void OnFrameMove(float elapsed_time);
 
   static Block *GetBlockByID(const BLOCK_ID &id);
 
@@ -55,6 +56,8 @@ class Block {
   Block(const BLOCK_ID &id);
   ~Block(void);
 
+  HRESULT ActivateReal(ID3D10Device *device);
+
   // Generation steps
   HRESULT RenderDensityVolume(ID3D10Device *device);
   HRESULT GenerateTriangles(ID3D10Device *device);
@@ -67,6 +70,7 @@ class Block {
   BLOCK_ID id_;
   INT primitive_count_;
   bool active_;
+  bool waiting_for_activation_;
 
   // Rendering resources
   ID3D10Buffer *vertex_buffer_;

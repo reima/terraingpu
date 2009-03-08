@@ -44,7 +44,8 @@ Block::Block(const D3DXVECTOR3 &position)
       vertex_buffer_(NULL),
       index_buffer_(NULL),
       primitive_count_(-1),
-      active_(false) {
+      active_(false),
+      waiting_for_activation_(false) {
   id_.x = static_cast<int>(position.x);
   id_.y = static_cast<int>(position.y);
   id_.z = static_cast<int>(position.z);
@@ -55,7 +56,8 @@ Block::Block(const BLOCK_ID &id)
       vertex_buffer_(NULL),
       index_buffer_(NULL),
       primitive_count_(-1),
-      active_(false) {
+      active_(false),
+      waiting_for_activation_(false) {
   position_.x = static_cast<FLOAT>(id.x);
   position_.y = static_cast<FLOAT>(id.y);
   position_.z = static_cast<FLOAT>(id.z);
@@ -66,24 +68,14 @@ Block::~Block(void) {
   SAFE_RELEASE(index_buffer_);
 }
 
-HRESULT Block::Activate(ID3D10Device *device) {
-  if (active_) return S_OK;
-
-  assert(offset_ev_ != NULL);
-  HRESULT hr;
-
-  offset_ev_->SetFloatVector(position_);
-  V_RETURN(RenderDensityVolume(device));
-  V_RETURN(GenerateTriangles(device));
-
-  if (IsEmpty()) Deactivate();
-
-  active_ = true;
-
-  return S_OK;
+void Block::Activate(void) {
+  if (waiting_for_activation_) return;
+  waiting_for_activation_ = true;
+  activation_queue_.push(this);
 }
 
 void Block::Deactivate(void) {
+  waiting_for_activation_ = false;
   if (!active_) return;
   SAFE_RELEASE(vertex_buffer_);
   SAFE_RELEASE(index_buffer_);
@@ -466,12 +458,14 @@ HRESULT Block::OnCreateDevice(ID3D10Device *device) {
       }
     }
     // missing voxels for 33x33 for method 3
-    for (UINT i = 0; i < kVoxelDim; ++i) {
+    for (UINT i = 0; i < kVoxelDim - 1; ++i) {
       voxels[kVoxelDimMinusOne*kVoxelDimMinusOne+i][0] = i;
       voxels[kVoxelDimMinusOne*kVoxelDimMinusOne+i][1] = kVoxelDim - 1;
-      voxels[kVoxelDimMinusOne*kVoxelDimMinusOne+i+kVoxelDim][0] = kVoxelDim - 1;
-      voxels[kVoxelDimMinusOne*kVoxelDimMinusOne+i+kVoxelDim][1] = i;
+      voxels[kVoxelDimMinusOne*kVoxelDimMinusOne+i+kVoxelDimMinusOne][0] = kVoxelDim - 1;
+      voxels[kVoxelDimMinusOne*kVoxelDimMinusOne+i+kVoxelDimMinusOne][1] = i;
     }
+    voxels[kVoxelDim*kVoxelDim-1][0] = kVoxelDim - 1;
+    voxels[kVoxelDim*kVoxelDim-1][1] = kVoxelDim - 1;
 
     D3D10_BUFFER_DESC buffer_desc;
     buffer_desc.ByteWidth = sizeof(voxels);
@@ -653,4 +647,35 @@ UINT64 Block::GetQueryResult(void) {
   query_ = NULL;
 
   return query_data.NumPrimitivesWritten;
+}
+
+HRESULT Block::ActivateReal(ID3D10Device *device) {
+  if (active_) return S_OK;
+
+  assert(offset_ev_ != NULL);
+  HRESULT hr;
+
+  offset_ev_->SetFloatVector(position_);
+  V_RETURN(RenderDensityVolume(device));
+  V_RETURN(GenerateTriangles(device));
+
+  if (IsEmpty()) Deactivate();
+
+  active_ = true;
+  waiting_for_activation_ = false;
+
+  return S_OK;
+}
+
+void Block::OnFrameMove(float elapsed_time) {
+  int count = 0;
+  const int max_count = 4;
+  while (!activation_queue_.empty() && count < max_count) {
+    Block *block = activation_queue_.front();
+    if (block->waiting_for_activation_) {
+      block->ActivateReal(DXUTGetD3D10Device());
+      count++;
+    }
+    activation_queue_.pop();
+  }
 }

@@ -56,7 +56,7 @@ HRESULT Octree::ActivateBlocks(ID3D10Device *device) {
   HRESULT hr;
 
   if (block_) {
-    V_RETURN(block_->Activate(device));
+    block_->Activate();
     is_empty_ = block_->IsEmpty();
   } else {
     is_empty_ = true;

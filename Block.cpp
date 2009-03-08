@@ -70,6 +70,7 @@ Block::~Block(void) {
 
 void Block::Activate(void) {
   if (waiting_for_activation_) return;
+  if (active_) return;
   waiting_for_activation_ = true;
   activation_queue_.push(this);
 }
@@ -669,7 +670,7 @@ HRESULT Block::ActivateReal(ID3D10Device *device) {
 
 void Block::OnFrameMove(float elapsed_time) {
   int count = 0;
-  const int max_count = 4;
+  const int max_count = 16; // TODO: some sort of adpative max_count
   while (!activation_queue_.empty() && count < max_count) {
     Block *block = activation_queue_.front();
     if (block->waiting_for_activation_) {

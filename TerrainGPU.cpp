@@ -3,8 +3,11 @@
 //--------------------------------------------------------------------------------------
 #include "DXUT.h"
 #include "DXUTcamera.h"
+#include "SDKmisc.h"
+
 #include "Block.h"
 #include "Octree.h"
+
 #include <iostream>
 #include <sstream>
 #include <cmath>
@@ -17,6 +20,11 @@ Octree *octree;
 
 UINT g_uiWidth, g_uiHeight;
 CFirstPersonCamera g_Camera;
+
+// For text rendering
+CDXUTTextHelper*            g_pTxtHelper = NULL;
+ID3DX10Font*                g_pFont = NULL;
+ID3DX10Sprite*              g_pSprite = NULL;
 
 //--------------------------------------------------------------------------------------
 // Reject any D3D10 devices that aren't acceptable by returning false
@@ -48,12 +56,20 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   Block::OnCreateDevice(pd3dDevice);
 
+  // Load text resources
+  V_RETURN(D3DX10CreateSprite(pd3dDevice, 500, &g_pSprite));
+  V_RETURN(D3DX10CreateFont(pd3dDevice, 15, 0, FW_BOLD, 1, FALSE,
+                            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                            L"Arial", &g_pFont));
+  g_pTxtHelper = new CDXUTTextHelper(NULL, NULL, g_pFont, g_pSprite, 15);
+
   // Load effect file
   ID3D10Blob *errors = NULL;
   UINT flags = D3D10_SHADER_ENABLE_STRICTNESS;
 #if defined(DEBUG) | defined(_DEBUG)
   flags |= D3D10_SHADER_DEBUG;
-  flags |= D3D10_SHADER_SKIP_OPTIMIZATION;
+  //flags |= D3D10_SHADER_SKIP_OPTIMIZATION;
 #endif
   hr = D3DX10CreateEffectFromFile(L"Effect.fx", NULL, NULL,
                                   "fx_4_0", flags, 0,
@@ -91,8 +107,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_Camera.SetViewParams(&eye, &lookat);
   g_Camera.SetScalers(0.01f, 1.0f);
 
-  octree = new Octree(-4, -4, -4, 3);
-  octree->ActivateBlocks(pd3dDevice);
+  octree = new Octree(-8, -8, -8, 4);
+  //octree->ActivateBlocks(pd3dDevice);
 
   return S_OK;
 }
@@ -108,7 +124,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   g_uiHeight = pBackBufferSurfaceDesc->Height;
 
   float aspect = g_uiWidth / (float)g_uiHeight;
-  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 3.6f);
+  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 7.5f);
 
   return S_OK;
 }
@@ -130,7 +146,7 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
 void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float fElapsedTime, void* pUserContext )
 {
   const D3DXVECTOR3 *eye = g_Camera.GetEyePt();
-  octree->Relocate(std::floor(eye->x - 4 + 0.5f), std::floor(eye->y - 4 + 0.5f), std::floor(eye->z - 4 + 0.5f));
+  octree->Relocate(std::floor(eye->x - 8 + 0.5f), std::floor(eye->y - 8 + 0.5f), std::floor(eye->z - 8 + 0.5f));
   octree->ActivateBlocks(pd3dDevice);
 
   ID3D10RenderTargetView *rtv = DXUTGetD3D10RenderTargetView();
@@ -156,6 +172,16 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   g_pCamPosEV->SetFloatVector(*const_cast<D3DXVECTOR3 *>(g_Camera.GetEyePt()));
 
   octree->Draw(pd3dDevice, g_pEffect->GetTechniqueByName("RenderBlock"));
+
+  g_pTxtHelper->Begin();
+  g_pTxtHelper->SetInsertionPos(5, 5);
+  g_pTxtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 0.0f, 1.0f));
+  g_pTxtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
+  g_pTxtHelper->DrawTextLine(DXUTGetDeviceStats());
+  WCHAR sz[100];
+  StringCchPrintf(sz, 100, L"Queue length: %d", Block::activation_queue_.size());
+  g_pTxtHelper->DrawTextLine(sz);
+  g_pTxtHelper->End();
 }
 
 
@@ -174,6 +200,9 @@ void CALLBACK OnD3D10DestroyDevice( void* pUserContext )
 {
   SAFE_RELEASE(g_pEffect);
   SAFE_DELETE(octree);
+  SAFE_DELETE(g_pTxtHelper);
+  SAFE_RELEASE(g_pFont);
+  SAFE_RELEASE(g_pSprite);
 
   Block::OnDestroyDevice();
 }

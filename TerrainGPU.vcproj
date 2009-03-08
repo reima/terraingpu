@@ -646,10 +646,22 @@
 				RelativePath=".\DXUT\Optional\DXUTres.h"
 				>
 			</File>
+			<File
+				RelativePath=".\DXUT\Optional\SDKmisc.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\DXUT\Optional\SDKmisc.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Effects"
 			>
+			<File
+				RelativePath=".\BlockGen.fxh"
+				>
+			</File>
 			<File
 				RelativePath=".\Density.fxh"
 				>

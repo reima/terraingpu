@@ -106,5 +106,6 @@ class Block {
 
   // Activation queue
   typedef std::queue<Block *> BLOCK_QUEUE;
+public:
   static BLOCK_QUEUE activation_queue_;
 };

@@ -1,23 +1,19 @@
 Texture3D g_tNoise3D;
 
-SamplerState ssTrilinearRepeat {
-  AddressU = WRAP;
-  AddressV = WRAP;
-  AddressW = WRAP;
-  Filter = MIN_MAG_MIP_LINEAR;
-};
-
 float Noise(float3 tex) {
   return g_tNoise3D.SampleLevel(ssTrilinearRepeat, tex*0.1, 0).x*2-1;
 }
 
 float DENSITY(float3 Position) {
   //float density = 0.5 - length(Position);
-  float density = -Position.y;
   //float density = 0;
   float3 warp = float3(Noise(Position*0.004), Noise((Position+0.1)*0.004), Noise((Position+0.2)*0.004))*4;
   Position += warp;
-  //density += Noise(Position*0.1)*10.00;
+  float density = -Position.y;
+  warp = float3(Noise(Position*0.004), Noise((Position+0.1)*0.004), Noise((Position+0.2)*0.004))*2;
+  Position += warp;
+  density += Noise(Position*0.25)*10.00;
+  density += Noise(Position*0.49)*2.00;
   density += Noise(Position*1.01)*1.00;
   density += Noise(Position*1.96)*0.50;
   density += Noise(Position*4.03)*0.25;

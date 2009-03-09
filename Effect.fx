@@ -48,7 +48,7 @@ VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   Output.Normal = Input.Normal;
   Output.WorldPos = Input.Position;
   //Output.LightDir = normalize(g_vCamPos - Input.Position);
-  Output.LightDir = normalize(float3(1, 1, 0));
+  Output.LightDir = normalize(float3(1, 1, 1));
   Output.ViewDir = normalize(g_vCamPos - Input.Position);
 
   float3 N_abs = abs(Input.Normal);
@@ -116,7 +116,7 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   float3 L = normalize(Input.LightDir);
   float3 H = normalize(Input.ViewDir + Input.LightDir);
   float4 coeffs = lit(dot(N, L), dot(N, H), 32);
-  float intensity = dot(coeffs, float4(0.05, 0.45, 0.25, 0));
+  float intensity = dot(coeffs, float4(0.05, 0.5, 0.5, 0));
 
   //color = float4(Input.Tangent*0.5+0.5, 0);
   //color = float4(0.6 + 0.4*normalize(Input.Normal), 0);

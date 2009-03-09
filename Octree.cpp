@@ -34,6 +34,7 @@ void Octree::Init(void) {
 }
 
 void Octree::Relocate(INT base_x, INT base_y, INT base_z) {
+  if (x_ == base_x && y_ == base_y && z_ == base_z) return;
   x_ = base_x;
   y_ = base_y;
   z_ = base_z;

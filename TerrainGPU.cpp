@@ -17,16 +17,16 @@
 ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
 ID3D10EffectVectorVariable *g_pCamPosEV;
+ID3D10EffectScalarVariable *g_pNormalMappingEV;
+ID3D10EffectVectorVariable *g_pLightDirEV;
+
+bool g_bNormalMapping = true;
+D3DXVECTOR3 g_vLightDir(1, 1, 1);
 
 Octree *octree;
 
 UINT g_uiWidth, g_uiHeight;
 CFirstPersonCamera g_Camera;
-
-// For text rendering
-CDXUTTextHelper*            g_pTxtHelper = NULL;
-ID3DX10Font*                g_pFont = NULL;
-ID3DX10Sprite*              g_pSprite = NULL;
 
 //--------------------------------------------------------------------------------------
 // Reject any D3D10 devices that aren't acceptable by returning false
@@ -47,6 +47,32 @@ bool CALLBACK ModifyDeviceSettings( DXUTDeviceSettings* pDeviceSettings, void* p
   return true;
 }
 
+void WideToMultiByte(LPCWSTR string, std::vector<char> *output) {
+  const std::ctype<wchar_t> &CType = std::use_facet<std::ctype<wchar_t> >(std::locale());
+  std::wstring wstr(string);
+  output->clear();
+  output->resize(wstr.length() + 1);
+  CType._Narrow_s(wstr.data(), wstr.data() + wstr.length(), ' ', &(*output)[0], output->size());
+}
+
+#define CB_FRAME_STATS  0
+#define CB_DEVICE_STATS 1
+
+void TW_CALL GetCallback(void *value, void *clientData) {
+  char **destPtr = (char **)value;
+  std::vector<char> str;
+  LPCWSTR wstr = L"";
+  switch ((int)clientData) {
+    case CB_FRAME_STATS:
+      wstr = DXUTGetFrameStats(DXUTIsVsyncEnabled());
+      break;
+    case CB_DEVICE_STATS:
+      wstr = DXUTGetDeviceStats();
+      break;
+  }
+  WideToMultiByte(wstr, &str);
+  TwCopyCDStringToLibrary(destPtr, &str[0]);
+}
 
 //--------------------------------------------------------------------------------------
 // Create any D3D10 resources that aren't dependant on the back buffer
@@ -57,16 +83,19 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   HRESULT hr;
 
   TwInit(TW_DIRECT3D10, pd3dDevice);
+  TwDefine("GLOBAL fontsize=1");
+
+  TwBar *bar = TwNewBar("Stats");
+  TwDefine("Stats position='0 0' size='600 60' valueswidth=550 refresh=1");
+  TwAddVarCB(bar, "Frame", TW_TYPE_CDSTRING, NULL, GetCallback, (void *)CB_FRAME_STATS, "Help='DX10 frame stats.'");
+  TwAddVarCB(bar, "Device", TW_TYPE_CDSTRING, NULL, GetCallback, (void *)CB_DEVICE_STATS, "Help='DX10 device stats.'");
+
+  bar = TwNewBar("Settings");
+  TwDefine("Settings position='0 60' size='150 500'");
+  TwAddVarRW(bar, "Normal Mapping", TW_TYPE_BOOLCPP, &g_bNormalMapping, "Help='Toggles normal mapping on the terrain.'");
+  TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.'");
 
   Block::OnCreateDevice(pd3dDevice);
-
-  // Load text resources
-  V_RETURN(D3DX10CreateSprite(pd3dDevice, 500, &g_pSprite));
-  V_RETURN(D3DX10CreateFont(pd3dDevice, 15, 0, FW_BOLD, 1, FALSE,
-                            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                            L"Tahoma", &g_pFont));
-  g_pTxtHelper = new CDXUTTextHelper(NULL, NULL, g_pFont, g_pSprite, 15);
 
   // Load effect file
   ID3D10Blob *errors = NULL;
@@ -90,6 +119,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   g_pWorldViewProjEV = g_pEffect->GetVariableByName("g_mWorldViewProj")->AsMatrix();
   g_pCamPosEV = g_pEffect->GetVariableByName("g_vCamPos")->AsVector();
+  g_pNormalMappingEV = g_pEffect->GetVariableByName("g_bNormalMapping")->AsScalar();
+  g_pLightDirEV = g_pEffect->GetVariableByName("g_vLightDir")->AsVector();
   {
     ID3D10ShaderResourceView *srview;
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-diffuse.jpg", NULL, NULL, &srview, NULL));
@@ -185,18 +216,10 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
                                *g_Camera.GetProjMatrix();
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
   g_pCamPosEV->SetFloatVector(*const_cast<D3DXVECTOR3 *>(g_Camera.GetEyePt()));
+  g_pNormalMappingEV->SetBool(g_bNormalMapping);
+  g_pLightDirEV->SetFloatVector(g_vLightDir);
 
   octree->Draw(pd3dDevice, g_pEffect->GetTechniqueByName("RenderBlock"));
-
-  g_pTxtHelper->Begin();
-  g_pTxtHelper->SetInsertionPos(5, 5);
-  g_pTxtHelper->SetForegroundColor(D3DXCOLOR(0.5f, 0.5f, 1.0f, 1.0f));
-  g_pTxtHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
-  g_pTxtHelper->DrawTextLine(DXUTGetDeviceStats());
-  WCHAR sz[100];
-  StringCchPrintf(sz, 100, L"Queue length: %d", Block::activation_queue_.size());
-  g_pTxtHelper->DrawTextLine(sz);
-  g_pTxtHelper->End();
 
   TwDraw();
 }
@@ -218,9 +241,6 @@ void CALLBACK OnD3D10DestroyDevice( void* pUserContext )
 {
   SAFE_RELEASE(g_pEffect);
   SAFE_DELETE(octree);
-  SAFE_DELETE(g_pTxtHelper);
-  SAFE_RELEASE(g_pFont);
-  SAFE_RELEASE(g_pSprite);
 
   Block::OnDestroyDevice();
 

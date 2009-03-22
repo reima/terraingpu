@@ -10,6 +10,11 @@ cbuffer cb2 {
   float3 g_vBlockOffset = float3(0, 0, 0);
 }
 
+cbuffer cb3 {
+  bool g_bNormalMapping = true;
+  float3 g_vLightDir = float3(1, 1, 1);
+}
+
 SamplerState ssNearestClamp {
   AddressU = CLAMP;
   AddressV = CLAMP;
@@ -48,7 +53,7 @@ VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   Output.Normal = Input.Normal;
   Output.WorldPos = Input.Position;
   //Output.LightDir = normalize(g_vCamPos - Input.Position);
-  Output.LightDir = normalize(float3(1, 1, 1));
+  Output.LightDir = normalize(g_vLightDir);
   Output.ViewDir = normalize(g_vCamPos - Input.Position);
 
   float3 N_abs = abs(Input.Normal);
@@ -112,7 +117,12 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   float3 color = blend_weights.x*colorX + blend_weights.y*colorY + blend_weights.z*colorZ;
   float3 normal = blend_weights.x*normalX + blend_weights.y*normalY + blend_weights.z*normalZ;
 
-  N = normalize(float3(normal.xy, 1));
+  if (g_bNormalMapping) {
+    N = normalize(float3(normal.xy, 1));
+  } else {
+    Input.LightDir = normalize(g_vLightDir);
+    Input.ViewDir = normalize(g_vCamPos - Input.WorldPos);
+  }
   float3 L = normalize(Input.LightDir);
   float3 H = normalize(Input.ViewDir + Input.LightDir);
   float4 coeffs = lit(dot(N, L), dot(N, H), 32);

@@ -5,6 +5,8 @@
 #include "DXUTcamera.h"
 #include "SDKmisc.h"
 
+#include "AntTweakBar.h"
+
 #include "Block.h"
 #include "Octree.h"
 
@@ -53,6 +55,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
                                       void* pUserContext )
 {
   HRESULT hr;
+
+  TwInit(TW_DIRECT3D10, pd3dDevice);
 
   Block::OnCreateDevice(pd3dDevice);
 
@@ -135,6 +139,8 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   float aspect = g_uiWidth / (float)g_uiHeight;
   g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 7.5f);
 
+  TwWindowSize(g_uiWidth, g_uiHeight);
+
   return S_OK;
 }
 
@@ -191,6 +197,8 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   StringCchPrintf(sz, 100, L"Queue length: %d", Block::activation_queue_.size());
   g_pTxtHelper->DrawTextLine(sz);
   g_pTxtHelper->End();
+
+  TwDraw();
 }
 
 
@@ -199,6 +207,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10ReleasingSwapChain( void* pUserContext )
 {
+  TwWindowSize(0, 0);
 }
 
 
@@ -214,6 +223,8 @@ void CALLBACK OnD3D10DestroyDevice( void* pUserContext )
   SAFE_RELEASE(g_pSprite);
 
   Block::OnDestroyDevice();
+
+  TwTerminate();
 }
 
 
@@ -223,6 +234,8 @@ void CALLBACK OnD3D10DestroyDevice( void* pUserContext )
 LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
                           bool* pbNoFurtherProcessing, void* pUserContext )
 {
+  if (TwEventWin(hWnd, uMsg, wParam, lParam)) return 0;
+
   g_Camera.HandleMessages(hWnd, uMsg, wParam, lParam);
   return 0;
 }

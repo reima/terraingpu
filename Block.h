@@ -39,6 +39,8 @@ class Block {
 
   static Block *GetBlockByID(const BLOCK_ID &id);
 
+  static int queue_size(void) { return activation_queue_.size(); }
+
   // Constants
   static const UINT kVoxelDim;
   static const UINT kVoxelDimMinusOne;
@@ -106,6 +108,5 @@ class Block {
 
   // Activation queue
   typedef std::queue<Block *> BLOCK_QUEUE;
-public:
   static BLOCK_QUEUE activation_queue_;
 };

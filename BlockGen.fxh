@@ -457,7 +457,7 @@ void GenIndices_GS(point VS_GENINDICES_OUTPUT Input[1],
                    inout PointStream<GS_GENINDICES_OUTPUT> Stream) {
   const uint nCase = Input[0].Cell & 0xFF;
   const uint nTris = numTris[nCase];
-  const int3 vCellPos = int3((Input[0].Cell >>  8) & 0xFF,
+  const uint3 vCellPos = int3((Input[0].Cell >>  8) & 0xFF,
                              (Input[0].Cell >> 16) & 0xFF,
                              (Input[0].Cell >> 24) & 0xFF);
   if (vCellPos.x == VoxelDimMinusOne.x || vCellPos.y == VoxelDimMinusOne.x || vCellPos.z == VoxelDimMinusOne.x) return;

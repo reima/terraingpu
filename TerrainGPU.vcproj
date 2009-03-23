@@ -30,7 +30,7 @@
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="AntTweakBar-DLL in Ausgabeverzeichnis kopieren..."
-				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)&quot;"
+				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)&quot;&#x0D;&#x0A;"
 				Outputs="&quot;$(TargetDir)\AntTweakBar.dll&quot;"
 			/>
 			<Tool
@@ -116,7 +116,7 @@
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="AntTweakBar-DLL in Ausgabeverzeichnis kopieren..."
-				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)&quot;"
+				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)&quot;&#x0D;&#x0A;"
 				Outputs="&quot;$(TargetDir)\AntTweakBar.dll&quot;"
 			/>
 			<Tool
@@ -312,6 +312,14 @@
 		</File>
 		<File
 			RelativePath=".\Block.h"
+			>
+		</File>
+		<File
+			RelativePath=".\LoadingScreen.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\LoadingScreen.h"
 			>
 		</File>
 		<File

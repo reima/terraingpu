@@ -9,6 +9,7 @@
 
 #include "Block.h"
 #include "Octree.h"
+#include "LoadingScreen.h"
 
 #include <iostream>
 #include <sstream>
@@ -20,12 +21,16 @@ ID3D10EffectVectorVariable *g_pCamPosEV;
 ID3D10EffectScalarVariable *g_pNormalMappingEV;
 ID3D10EffectVectorVariable *g_pLightDirEV;
 
+bool g_bLoading = false;
+int g_iLoadingMaxSize = 0;
+
 bool g_bNormalMapping = true;
 D3DXVECTOR3 g_vLightDir(1, 1, 1);
-int g_iOctreeDepth = 3;
-int g_iOctreeBaseOffset = -4;
+int g_iOctreeDepth = 4;
+int g_iOctreeBaseOffset = -8;
 
 Octree *octree;
+LoadingScreen g_LoadingScreen;
 
 UINT g_uiWidth, g_uiHeight;
 CFirstPersonCamera g_Camera;
@@ -110,13 +115,14 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32, OctreeSetCallback, OctreeGetCallback, NULL, "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
 
   Block::OnCreateDevice(pd3dDevice);
+  g_LoadingScreen.OnCreateDevice(pd3dDevice);
 
   // Load effect file
   ID3D10Blob *errors = NULL;
   UINT flags = D3D10_SHADER_ENABLE_STRICTNESS;
 #if defined(DEBUG) | defined(_DEBUG)
   flags |= D3D10_SHADER_DEBUG;
-  //flags |= D3D10_SHADER_SKIP_OPTIMIZATION;
+  flags |= D3D10_SHADER_SKIP_OPTIMIZATION;
 #endif
   hr = D3DX10CreateEffectFromFile(L"Effect.fx", NULL, NULL,
                                   "fx_4_0", flags, 0,
@@ -130,6 +136,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   }
 
   Block::OnLoadEffect(pd3dDevice, g_pEffect);
+  g_LoadingScreen.OnLoadEffect(pd3dDevice, g_pEffect);
 
   g_pWorldViewProjEV = g_pEffect->GetVariableByName("g_mWorldViewProj")->AsMatrix();
   g_pCamPosEV = g_pEffect->GetVariableByName("g_vCamPos")->AsVector();
@@ -166,7 +173,10 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_Camera.SetDrag(true, 0.5f);
 
   octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeDepth);
-  //octree->ActivateBlocks(pd3dDevice);
+  octree->ActivateBlocks(pd3dDevice);
+
+  g_bLoading = true;
+  g_iLoadingMaxSize = Block::queue_size();
 
   return S_OK;
 }
@@ -195,6 +205,13 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
 //--------------------------------------------------------------------------------------
 void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext )
 {
+  if (g_bLoading) {
+    float loaded = 1 - (float)Block::queue_size() / g_iLoadingMaxSize;
+    g_LoadingScreen.set_loaded(loaded);
+    if (loaded > 0.9999f) {
+      g_bLoading = false;
+    }
+  }
   g_Camera.FrameMove(fElapsedTime);
   Block::OnFrameMove(fElapsedTime);
 }
@@ -205,12 +222,6 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float fElapsedTime, void* pUserContext )
 {
-  const D3DXVECTOR3 *eye = g_Camera.GetEyePt();
-  octree->Relocate(std::floor(eye->x + g_iOctreeBaseOffset + 0.5f),
-                   std::floor(eye->y + g_iOctreeBaseOffset + 0.5f),
-                   std::floor(eye->z + g_iOctreeBaseOffset + 0.5f));
-  octree->ActivateBlocks(pd3dDevice);
-
   ID3D10RenderTargetView *rtv = DXUTGetD3D10RenderTargetView();
   ID3D10DepthStencilView *dsv = DXUTGetD3D10DepthStencilView();
   pd3dDevice->OMSetRenderTargets(1, &rtv, dsv);
@@ -226,6 +237,17 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   float ClearColor[4] = { 0.176f, 0.196f, 0.667f, 0.0f };
   pd3dDevice->ClearRenderTargetView( DXUTGetD3D10RenderTargetView(), ClearColor );
   pd3dDevice->ClearDepthStencilView( DXUTGetD3D10DepthStencilView(), D3D10_CLEAR_DEPTH, 1.0, 0 );
+
+  if (g_bLoading) {
+    g_LoadingScreen.Draw(pd3dDevice);
+    return;
+  }
+  
+  const D3DXVECTOR3 *eye = g_Camera.GetEyePt();
+  octree->Relocate(std::floor(eye->x + g_iOctreeBaseOffset + 0.5f),
+                   std::floor(eye->y + g_iOctreeBaseOffset + 0.5f),
+                   std::floor(eye->z + g_iOctreeBaseOffset + 0.5f));
+  octree->ActivateBlocks(pd3dDevice);  
 
   D3DXMATRIX world_view_proj = /**g_Camera.GetWorldMatrix() **/
                                *g_Camera.GetViewMatrix() *
@@ -259,6 +281,7 @@ void CALLBACK OnD3D10DestroyDevice( void* pUserContext )
   SAFE_DELETE(octree);
 
   Block::OnDestroyDevice();
+  g_LoadingScreen.OnDestroyDevice();
 
   TwTerminate();
 }

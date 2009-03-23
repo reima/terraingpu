@@ -15,6 +15,10 @@ cbuffer cb3 {
   float3 g_vLightDir = float3(1, 1, 1);
 }
 
+cbuffer cb4 {
+  float g_fLoaded = 0.0;
+}
+
 SamplerState ssNearestClamp {
   AddressU = CLAMP;
   AddressV = CLAMP;
@@ -125,7 +129,7 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   }
   float3 L = normalize(Input.LightDir);
   float3 H = normalize(Input.ViewDir + Input.LightDir);
-  float4 coeffs = lit(dot(N, L), dot(N, H), 32);
+  float4 coeffs = lit(dot(N, L), abs(dot(N, H)), 32);
   float intensity = dot(coeffs, float4(0.05, 0.5, 0.5, 0));
 
   //color = float4(Input.Tangent*0.5+0.5, 0);
@@ -151,6 +155,39 @@ technique10 RenderBlock {
     SetGeometryShader(NULL);
     SetPixelShader(CompileShader(ps_4_0, Block_PS()));
     SetDepthStencilState(NULL, 0);
+    SetBlendState(NULL, float4(0, 0, 0, 0), 0xFFFFFFFF);
+    SetRasterizerState(NULL);
+  }
+}
+
+
+
+float4 Loading_VS(float4 vPosition : POSITION, out float2 vScreenPos : SCREENPOS) : SV_Position
+{
+  vScreenPos = vPosition.xy*0.5 + 0.5;
+  vScreenPos.y = 1 - vScreenPos.y;
+  return vPosition;
+}
+
+float4 Loading_PS(float4 vPosition : SV_Position, float2 vScreenPos : SCREENPOS) : SV_Target
+{
+  if (vScreenPos.y >= 0.45 && vScreenPos.y <= 0.55) {
+    float x = vScreenPos.x*1.2-0.1;
+    if (x >= 0 && x <= g_fLoaded) {
+      float s = 1-sqrt(1-g_fLoaded);
+      return float4(s, s, s, 1);
+    }
+    if ((x >= -0.025 && x <= -0.0125) || (x >= 1.0125 && x <= 1.025)) return float4(1, 1, 1, 1);
+  }
+  return float4(0, 0, 0, 1);
+}
+
+technique10 LoadingScreen {
+  pass P0 {
+    SetVertexShader(CompileShader(vs_4_0, Loading_VS()));
+    SetGeometryShader(NULL);
+    SetPixelShader(CompileShader(ps_4_0, Loading_PS()));
+    SetDepthStencilState(dssDisableDepthStencil, 0);
     SetBlendState(NULL, float4(0, 0, 0, 0), 0xFFFFFFFF);
     SetRasterizerState(NULL);
   }

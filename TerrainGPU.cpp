@@ -22,6 +22,8 @@ ID3D10EffectVectorVariable *g_pLightDirEV;
 
 bool g_bNormalMapping = true;
 D3DXVECTOR3 g_vLightDir(1, 1, 1);
+int g_iOctreeDepth = 3;
+int g_iOctreeBaseOffset = -4;
 
 Octree *octree;
 
@@ -74,6 +76,17 @@ void TW_CALL GetCallback(void *value, void *clientData) {
   TwCopyCDStringToLibrary(destPtr, &str[0]);
 }
 
+void TW_CALL OctreeGetCallback(void *value, void *clientData) {
+  *(int *)value = g_iOctreeDepth;
+}
+
+void TW_CALL OctreeSetCallback(const void *value, void *clientData) {
+  g_iOctreeDepth = *(int *)value;
+  g_iOctreeBaseOffset = -(1 << (g_iOctreeDepth - 1));
+  SAFE_DELETE(octree);
+  octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeDepth);
+}
+
 //--------------------------------------------------------------------------------------
 // Create any D3D10 resources that aren't dependant on the back buffer
 //--------------------------------------------------------------------------------------
@@ -92,8 +105,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   bar = TwNewBar("Settings");
   TwDefine("Settings position='0 60' size='150 500'");
-  TwAddVarRW(bar, "Normal Mapping", TW_TYPE_BOOLCPP, &g_bNormalMapping, "Help='Toggles normal mapping on the terrain.'");
+  TwAddVarRW(bar, "Normal mapping", TW_TYPE_BOOLCPP, &g_bNormalMapping, "Help='Toggles normal mapping on the terrain.'");
   TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.'");
+  TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32, OctreeSetCallback, OctreeGetCallback, NULL, "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
 
   Block::OnCreateDevice(pd3dDevice);
 
@@ -151,7 +165,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_Camera.SetScalers(0.01f, 1.0f);
   g_Camera.SetDrag(true, 0.5f);
 
-  octree = new Octree(-8, -8, -8, 4);
+  octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeDepth);
   //octree->ActivateBlocks(pd3dDevice);
 
   return S_OK;
@@ -192,7 +206,9 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
 void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float fElapsedTime, void* pUserContext )
 {
   const D3DXVECTOR3 *eye = g_Camera.GetEyePt();
-  octree->Relocate(std::floor(eye->x - 8 + 0.5f), std::floor(eye->y - 8 + 0.5f), std::floor(eye->z - 8 + 0.5f));
+  octree->Relocate(std::floor(eye->x + g_iOctreeBaseOffset + 0.5f),
+                   std::floor(eye->y + g_iOctreeBaseOffset + 0.5f),
+                   std::floor(eye->z + g_iOctreeBaseOffset + 0.5f));
   octree->ActivateBlocks(pd3dDevice);
 
   ID3D10RenderTargetView *rtv = DXUTGetD3D10RenderTargetView();

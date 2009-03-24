@@ -26,7 +26,7 @@ class Block {
   void Activate(void);
   void Deactivate(void);
 
-  void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const;
+  void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique);
   bool IsEmpty(void) const { return primitive_count_ == 0; }
 
   const BLOCK_ID &id(void) const { return id_; }
@@ -73,6 +73,7 @@ class Block {
   INT primitive_count_;
   bool active_;
   bool waiting_for_activation_;
+  float activation_time_;
 
   // Rendering resources
   ID3D10Buffer *vertex_buffer_;
@@ -100,6 +101,7 @@ class Block {
   static ID3D10Buffer *voxel_slice_vb_;
   static ID3D10InputLayout *voxel_slice_il_;
   static ID3D10EffectVectorVariable *offset_ev_;
+  static ID3D10EffectScalarVariable *activation_time_ev_;
   static ID3D10Query *query_;
 
   // Block cache

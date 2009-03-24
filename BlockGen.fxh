@@ -497,17 +497,3 @@ technique10 GenIndices {
     SetPixelShader(NULL);
   }
 }
-
-struct VS_BLOCK_INPUT {
-  float3 Position : POSITION;
-  float3 Normal   : NORMAL;
-};
-
-struct VS_BLOCK_OUTPUT {
-  float4 Position : SV_Position;
-  float3 Normal   : NORMAL;
-  float3 LightDir : LIGHTDIR;
-  float3 ViewDir  : VIEWDIR;
-  float3 WorldPos : WORLDPOS;
-  float2 Depth    : DEPTH;
-};

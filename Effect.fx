@@ -4,14 +4,17 @@
 cbuffer cb0 {
   float4x4 g_mWorldViewProj;
   float3   g_vCamPos;
+  float    g_fTime;
 }
 
 cbuffer cb2 {
   float3 g_vBlockOffset = float3(0, 0, 0);
+  float  g_vBlockActivationTime = 0;
 }
 
 cbuffer cb3 {
   bool g_bNormalMapping = true;
+  bool g_bFog = true;
   float3 g_vLightDir = float3(1, 1, 1);
 }
 
@@ -42,6 +45,20 @@ SamplerState ssTrilinearRepeat {
 
 #include "BlockGen.fxh"
 
+struct VS_BLOCK_INPUT {
+  float3 Position : POSITION;
+  float3 Normal   : NORMAL;
+};
+
+struct VS_BLOCK_OUTPUT {
+  float4 Position : SV_Position;
+  float3 Normal   : NORMAL;
+  float3 LightDir : LIGHTDIR;
+  float3 ViewDir  : VIEWDIR;
+  float3 WorldPos : WORLDPOS;
+  float  Age      : AGE;
+};
+
 Texture2D g_tDiffuseX;
 Texture2D g_tDiffuseY;
 Texture2D g_tDiffuseZ;
@@ -53,10 +70,9 @@ Texture2D g_tBump;
 VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   VS_BLOCK_OUTPUT Output;
   Output.Position = mul(float4(Input.Position, 1), g_mWorldViewProj);
-  Output.Depth = Output.Position.zw;
   Output.Normal = Input.Normal;
   Output.WorldPos = Input.Position;
-  //Output.LightDir = normalize(g_vCamPos - Input.Position);
+  Output.Age = g_fTime - g_vBlockActivationTime;
   Output.LightDir = normalize(g_vLightDir);
   Output.ViewDir = normalize(g_vCamPos - Input.Position);
 
@@ -138,15 +154,27 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   color *= intensity;
 
   // Fog
-  float depth = Input.Depth.x / Input.Depth.y;
-  color = lerp(color, float3(0.176, 0.196, 0.667), saturate(saturate(depth) - 0.999)*1000);
+  if (g_bFog) {
+    float depth = length(g_vCamPos - Input.WorldPos);
+    const float fFogStart = 5.0, fFogEnd = 7.0;
+    color = lerp(color, float3(0.176, 0.196, 0.667), saturate((depth-fFogStart) / (fFogEnd - fFogStart)));
+  }
 
-  return float4(color, 0);
+  return float4(color, saturate(Input.Age));
 }
 
 RasterizerState rsWireframe {
   FillMode = WIREFRAME;
   //CullMode = NONE;
+};
+
+BlendState bsSrcAlphaBlendingAdd
+{
+  BlendEnable[0] = TRUE;
+  SrcBlend = SRC_ALPHA;
+  DestBlend = INV_SRC_ALPHA;
+  BlendOp = ADD;
+  RenderTargetWriteMask[0] = 0x0F;
 };
 
 technique10 RenderBlock {
@@ -155,7 +183,7 @@ technique10 RenderBlock {
     SetGeometryShader(NULL);
     SetPixelShader(CompileShader(ps_4_0, Block_PS()));
     SetDepthStencilState(NULL, 0);
-    SetBlendState(NULL, float4(0, 0, 0, 0), 0xFFFFFFFF);
+    SetBlendState(bsSrcAlphaBlendingAdd, float4(0, 0, 0, 0), 0xFFFFFFFF);
     SetRasterizerState(NULL);
   }
 }

@@ -20,11 +20,14 @@ ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
 ID3D10EffectVectorVariable *g_pCamPosEV;
 ID3D10EffectScalarVariable *g_pNormalMappingEV;
 ID3D10EffectVectorVariable *g_pLightDirEV;
+ID3D10EffectScalarVariable *g_pTimeEV;
+ID3D10EffectScalarVariable *g_pFogEV;
 
 bool g_bLoading = false;
 int g_iLoadingMaxSize = 0;
 
 bool g_bNormalMapping = true;
+bool g_bFog = true;
 D3DXVECTOR3 g_vLightDir(1, 1, 1);
 int g_iOctreeDepth = 4;
 int g_iOctreeBaseOffset = -8;
@@ -110,6 +113,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   bar = TwNewBar("Settings");
   TwDefine("Settings position='0 60' size='150 500'");
+  TwAddVarRW(bar, "Fog", TW_TYPE_BOOLCPP, &g_bFog, "Help='Toggles fog effect.'");
   TwAddVarRW(bar, "Normal mapping", TW_TYPE_BOOLCPP, &g_bNormalMapping, "Help='Toggles normal mapping on the terrain.'");
   TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.'");
   TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32, OctreeSetCallback, OctreeGetCallback, NULL, "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
@@ -141,7 +145,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_pWorldViewProjEV = g_pEffect->GetVariableByName("g_mWorldViewProj")->AsMatrix();
   g_pCamPosEV = g_pEffect->GetVariableByName("g_vCamPos")->AsVector();
   g_pNormalMappingEV = g_pEffect->GetVariableByName("g_bNormalMapping")->AsScalar();
+  g_pFogEV = g_pEffect->GetVariableByName("g_bFog")->AsScalar();
   g_pLightDirEV = g_pEffect->GetVariableByName("g_vLightDir")->AsVector();
+  g_pTimeEV = g_pEffect->GetVariableByName("g_fTime")->AsScalar();
   {
     ID3D10ShaderResourceView *srview;
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-diffuse.jpg", NULL, NULL, &srview, NULL));
@@ -175,7 +181,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeDepth);
   octree->ActivateBlocks(pd3dDevice);
 
-  g_bLoading = true;
+  //g_bLoading = true;
   g_iLoadingMaxSize = Block::queue_size();
 
   return S_OK;
@@ -192,7 +198,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   g_uiHeight = pBackBufferSurfaceDesc->Height;
 
   float aspect = g_uiWidth / (float)g_uiHeight;
-  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 7.5f);
+  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 10.0f);
 
   TwWindowSize(g_uiWidth, g_uiHeight);
 
@@ -244,10 +250,10 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   }
   
   const D3DXVECTOR3 *eye = g_Camera.GetEyePt();
-  octree->Relocate(std::floor(eye->x + g_iOctreeBaseOffset + 0.5f),
-                   std::floor(eye->y + g_iOctreeBaseOffset + 0.5f),
-                   std::floor(eye->z + g_iOctreeBaseOffset + 0.5f));
-  octree->ActivateBlocks(pd3dDevice);  
+  octree->Relocate((INT)std::floor(eye->x + g_iOctreeBaseOffset + 0.5f),
+                   (INT)std::floor(eye->y + g_iOctreeBaseOffset + 0.5f),
+                   (INT)std::floor(eye->z + g_iOctreeBaseOffset + 0.5f));
+  octree->ActivateBlocks(pd3dDevice);
 
   D3DXMATRIX world_view_proj = /**g_Camera.GetWorldMatrix() **/
                                *g_Camera.GetViewMatrix() *
@@ -255,7 +261,9 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
   g_pCamPosEV->SetFloatVector(*const_cast<D3DXVECTOR3 *>(g_Camera.GetEyePt()));
   g_pNormalMappingEV->SetBool(g_bNormalMapping);
+  g_pFogEV->SetBool(g_bFog);
   g_pLightDirEV->SetFloatVector(g_vLightDir);
+  g_pTimeEV->SetFloat((float)DXUTGetTime());
 
   octree->Draw(pd3dDevice, g_pEffect->GetTechniqueByName("RenderBlock"));
 

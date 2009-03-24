@@ -28,6 +28,7 @@ ID3D10InputLayout *Block::edges_il_ = NULL;
 ID3D10Buffer *Block::voxel_slice_vb_ = NULL;
 ID3D10InputLayout *Block::voxel_slice_il_ = NULL;
 ID3D10EffectVectorVariable *Block::offset_ev_ = NULL;
+ID3D10EffectScalarVariable *Block::activation_time_ev_ = NULL;
 ID3D10EffectShaderResourceVariable *Block::density_volume_ev_ = NULL;
 ID3D10Texture3D *Block::indices_volume_tex_ = NULL;
 ID3D10RenderTargetView *Block::indices_volume_rtv_ = NULL;
@@ -300,7 +301,10 @@ done:
   return S_OK;
 }
 
-void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const {
+void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) {
+  assert(vertex_buffer_ != NULL);
+  assert(input_layout_ != NULL);
+
   if (primitive_count_ <= 0) return;
   UINT strides = sizeof(D3DXVECTOR3)*2;
   UINT offsets = 0;
@@ -308,6 +312,8 @@ void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) const {
   device->IASetInputLayout(input_layout_);
   device->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+  offset_ev_->SetFloatVector(position_);
+  activation_time_ev_->SetFloat(activation_time_);
   technique->GetPassByIndex(0)->Apply(0);
 #if METHOD == 2
   device->DrawAuto();
@@ -491,6 +497,7 @@ HRESULT Block::OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect) {
 
   // Get variables
   offset_ev_ = effect->GetVariableByName("g_vBlockOffset")->AsVector();
+  activation_time_ev_ = effect->GetVariableByName("g_vBlockActivationTime")->AsScalar();
   density_volume_ev_ = effect->GetVariableByName("g_tDensityVolume")->AsShaderResource();
   indices_volume_ev_ = effect->GetVariableByName("g_tIndicesVolume")->AsShaderResource();
 
@@ -665,12 +672,14 @@ HRESULT Block::ActivateReal(ID3D10Device *device) {
   active_ = true;
   waiting_for_activation_ = false;
 
+  activation_time_ = (float)DXUTGetTime();
+
   return S_OK;
 }
 
 void Block::OnFrameMove(float elapsed_time) {
   int count = 0;
-  const int max_count = 16; // TODO: some sort of adpative max_count
+  const int max_count = 8; // TODO: some sort of adpative max_count
   while (!activation_queue_.empty() && count < max_count) {
     Block *block = activation_queue_.front();
     if (block->waiting_for_activation_) {

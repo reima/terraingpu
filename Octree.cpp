@@ -64,7 +64,7 @@ HRESULT Octree::ActivateBlocks(ID3D10Device *device) {
     for (UINT i = 0; i < 8; ++i) {
       if (children_[i]) {
         V_RETURN(children_[i]->ActivateBlocks(device));
-        is_empty_ &= children_[i]->is_empty_;
+        is_empty_ = is_empty_ && children_[i]->is_empty_;
       }
     }
   }

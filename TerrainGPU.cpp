@@ -182,7 +182,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   octree->ActivateBlocks(pd3dDevice);
 
   //g_bLoading = true;
-  g_iLoadingMaxSize = Block::queue_size();
+  //g_iLoadingMaxSize = Block::queue_size();
 
   return S_OK;
 }
@@ -211,15 +211,15 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
 //--------------------------------------------------------------------------------------
 void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext )
 {
-  if (g_bLoading) {
-    float loaded = 1 - (float)Block::queue_size() / g_iLoadingMaxSize;
-    g_LoadingScreen.set_loaded(loaded);
-    if (loaded > 0.9999f) {
-      g_bLoading = false;
-    }
-  }
+  //if (g_bLoading) {
+  //  float loaded = 1 - (float)Block::queue_size() / g_iLoadingMaxSize;
+  //  g_LoadingScreen.set_loaded(loaded);
+  //  if (loaded > 0.9999f) {
+  //    g_bLoading = false;
+  //  }
+  //}
   g_Camera.FrameMove(fElapsedTime);
-  Block::OnFrameMove(fElapsedTime);
+  Block::OnFrameMove(fElapsedTime, g_Camera.GetEyePt());
 }
 
 
@@ -244,10 +244,10 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   pd3dDevice->ClearRenderTargetView( DXUTGetD3D10RenderTargetView(), ClearColor );
   pd3dDevice->ClearDepthStencilView( DXUTGetD3D10DepthStencilView(), D3D10_CLEAR_DEPTH, 1.0, 0 );
 
-  if (g_bLoading) {
-    g_LoadingScreen.Draw(pd3dDevice);
-    return;
-  }
+  //if (g_bLoading) {
+  //  g_LoadingScreen.Draw(pd3dDevice);
+  //  return;
+  //}
   
   const D3DXVECTOR3 *eye = g_Camera.GetEyePt();
   octree->Relocate((INT)std::floor(eye->x + g_iOctreeBaseOffset + 0.5f),
@@ -255,11 +255,10 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
                    (INT)std::floor(eye->z + g_iOctreeBaseOffset + 0.5f));
   octree->ActivateBlocks(pd3dDevice);
 
-  D3DXMATRIX world_view_proj = /**g_Camera.GetWorldMatrix() **/
-                               *g_Camera.GetViewMatrix() *
+  D3DXMATRIX world_view_proj = *g_Camera.GetViewMatrix() *
                                *g_Camera.GetProjMatrix();
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
-  g_pCamPosEV->SetFloatVector(*const_cast<D3DXVECTOR3 *>(g_Camera.GetEyePt()));
+  g_pCamPosEV->SetFloatVector(*const_cast<D3DXVECTOR3 *>(eye));
   g_pNormalMappingEV->SetBool(g_bNormalMapping);
   g_pFogEV->SetBool(g_bFog);
   g_pLightDirEV->SetFloatVector(g_vLightDir);

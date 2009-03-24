@@ -35,7 +35,7 @@ class Block {
   static HRESULT OnCreateDevice(ID3D10Device *device);
   static HRESULT OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect);
   static void OnDestroyDevice(void);
-  static void OnFrameMove(float elapsed_time);
+  static void OnFrameMove(float elapsed_time, const D3DXVECTOR3 *camera_pos);
 
   static Block *GetBlockByID(const BLOCK_ID &id);
 
@@ -74,10 +74,13 @@ class Block {
   bool active_;
   bool waiting_for_activation_;
   float activation_time_;
+  float distance_to_camera_; // ... when Activate() was called
 
   // Rendering resources
   ID3D10Buffer *vertex_buffer_;
   ID3D10Buffer *index_buffer_;
+  static D3DXVECTOR3 camera_pos_;
+  static ID3D10EffectScalarVariable *activation_time_ev_;
   static ID3D10InputLayout *input_layout_;
 
   // Generation resources
@@ -101,7 +104,6 @@ class Block {
   static ID3D10Buffer *voxel_slice_vb_;
   static ID3D10InputLayout *voxel_slice_il_;
   static ID3D10EffectVectorVariable *offset_ev_;
-  static ID3D10EffectScalarVariable *activation_time_ev_;
   static ID3D10Query *query_;
 
   // Block cache
@@ -109,6 +111,12 @@ class Block {
   static BLOCK_CACHE cache_;
 
   // Activation queue
-  typedef std::queue<Block *> BLOCK_QUEUE;
+  struct CameraDistGreater : public std::binary_function<Block *, Block *, bool> {
+    bool operator()(const Block *left, const Block *right) const {
+      return left->distance_to_camera_ > right->distance_to_camera_;
+    }
+  };
+
+  typedef std::priority_queue<Block *, std::vector<Block *>, CameraDistGreater > BLOCK_QUEUE;
   static BLOCK_QUEUE activation_queue_;
 };

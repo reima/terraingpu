@@ -160,7 +160,7 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
     color = lerp(color, float3(0.176, 0.196, 0.667), saturate((depth-fFogStart) / (fFogEnd - fFogStart)));
   }
 
-  return float4(color, saturate(Input.Age));
+  return float4(color, saturate(Input.Age*3));
 }
 
 RasterizerState rsWireframe {

@@ -36,6 +36,7 @@ ID3D10ShaderResourceView *Block::indices_volume_srv_ = NULL;
 ID3D10EffectShaderResourceVariable *Block::indices_volume_ev_ = NULL;
 ID3D10Effect *Block::effect_ = NULL;
 ID3D10Query *Block::query_ = NULL;
+D3DXVECTOR3 Block::camera_pos_;
 
 Block::BLOCK_CACHE Block::cache_;
 Block::BLOCK_QUEUE Block::activation_queue_;
@@ -46,7 +47,9 @@ Block::Block(const D3DXVECTOR3 &position)
       index_buffer_(NULL),
       primitive_count_(-1),
       active_(false),
-      waiting_for_activation_(false) {
+      waiting_for_activation_(false),
+      activation_time_(0.0),
+      distance_to_camera_(0.0) {
   id_.x = static_cast<int>(position.x);
   id_.y = static_cast<int>(position.y);
   id_.z = static_cast<int>(position.z);
@@ -58,7 +61,9 @@ Block::Block(const BLOCK_ID &id)
       index_buffer_(NULL),
       primitive_count_(-1),
       active_(false),
-      waiting_for_activation_(false) {
+      waiting_for_activation_(false),
+      activation_time_(0.0),
+      distance_to_camera_(0.0) {
   position_.x = static_cast<FLOAT>(id.x);
   position_.y = static_cast<FLOAT>(id.y);
   position_.z = static_cast<FLOAT>(id.z);
@@ -73,6 +78,9 @@ void Block::Activate(void) {
   if (waiting_for_activation_) return;
   if (active_) return;
   waiting_for_activation_ = true;
+  D3DXVECTOR3 center = position_ + D3DXVECTOR3(0.5f, 0.5f, 0.5f) * Block::kBlockSize;
+  D3DXVECTOR3 distance_vector = center - camera_pos_;
+  distance_to_camera_ = D3DXVec3Length(&distance_vector);
   activation_queue_.push(this);
 }
 
@@ -677,11 +685,12 @@ HRESULT Block::ActivateReal(ID3D10Device *device) {
   return S_OK;
 }
 
-void Block::OnFrameMove(float elapsed_time) {
+void Block::OnFrameMove(float elapsed_time, const D3DXVECTOR3 *camera_pos) {
+  camera_pos_ = *camera_pos;
   int count = 0;
   const int max_count = 8; // TODO: some sort of adpative max_count
   while (!activation_queue_.empty() && count < max_count) {
-    Block *block = activation_queue_.front();
+    Block *block = activation_queue_.top();
     if (block->waiting_for_activation_) {
       block->ActivateReal(DXUTGetD3D10Device());
       count++;

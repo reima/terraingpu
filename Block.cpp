@@ -311,10 +311,11 @@ done:
 }
 
 void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) {
+  if (primitive_count_ <= 0) return;
+
   assert(vertex_buffer_ != NULL);
   assert(input_layout_ != NULL);
 
-  if (primitive_count_ <= 0) return;
   UINT strides = sizeof(D3DXVECTOR3)*2;
   UINT offsets = 0;
   device->IASetVertexBuffers(0, 1, &vertex_buffer_, &strides, &offsets);

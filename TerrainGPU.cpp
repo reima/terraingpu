@@ -115,29 +115,24 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   bar = TwNewBar("Settings");
   TwDefine("Settings position='0 60' size='150 500'");
-  TwAddVarCB(bar, "Fog", TW_TYPE_BOOLCPP,
-             Config::SetCallback<bool>, Config::GetCallback<bool>,
-             (void *)&Config::GetKey<bool>("Fog"),
+  TwAddVarRW(bar, "Fog", TW_TYPE_BOOLCPP,
+             (void *)&Config::Get<bool>("Fog"),
              "Help='Toggles fog effect.' key=f");
-  TwAddVarCB(bar, "Normal mapping", TW_TYPE_BOOLCPP,
-             Config::SetCallback<bool>, Config::GetCallback<bool>,
-             (void *)&Config::GetKey<bool>("NormalMapping"),
+  TwAddVarRW(bar, "Normal mapping", TW_TYPE_BOOLCPP,
+             (void *)&Config::Get<bool>("NormalMapping"),
              "Help='Toggles normal mapping on the terrain.' key=n");
-  TwAddVarCB(bar, "Blocks per frame", TW_TYPE_UINT32,
-             Config::SetCallback<UINT>, Config::GetCallback<UINT>,
-             (void *)&Config::GetKey<UINT>("MaxBlocksPerFrame"),
+  TwAddVarRW(bar, "Blocks per frame", TW_TYPE_UINT32,
+             (void *)&Config::Get<UINT>("MaxBlocksPerFrame"),
              "Help='Maximum number of blocks to generate each frame.' min=0 max=128");
-
   TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32,
              OctreeSetCallback, Config::GetCallback<UINT>,
              (void *)&Config::GetKey<UINT>("OctreeDepth"),
              "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
 
-  TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.'");  
+  TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.' axisx=x axisy=y axisz=-z");  
 
-  TwAddVarCB(bar, "Lock camera", TW_TYPE_BOOLCPP,
-             Config::SetCallback<bool>, Config::GetCallback<bool>,
-             (void *)&Config::GetKey<bool>("LockCamera"),
+  TwAddVarRW(bar, "Lock camera", TW_TYPE_BOOLCPP,
+             (void *)&Config::Get<bool>("LockCamera"),
              "Help='Locks the camera position used for octree shifting, LOD calculations, culling etc.' key=l");
 
   Block::OnCreateDevice(pd3dDevice);
@@ -195,7 +190,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   }
 
   D3DXVECTOR3 eye(0.0f, 1.0f, 0.0f);
-  D3DXVECTOR3 lookat(1.0f, 1.0f, 0.0f);
+  D3DXVECTOR3 lookat(0.0f, 1.0f, 1.0f);
   g_Camera.SetViewParams(&eye, &lookat);
   g_Camera.SetScalers(0.01f, 1.0f);
   g_Camera.SetDrag(true, 0.5f);

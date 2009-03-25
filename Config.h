@@ -1,5 +1,4 @@
 #pragma once
-#include "DXUT.h"
 #include "AntTweakBar.h"
 #include <string>
 #include <map>

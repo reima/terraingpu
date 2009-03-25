@@ -28,7 +28,9 @@ int g_iLoadingMaxSize = 0;
 
 bool g_bNormalMapping = true;
 bool g_bFog = true;
+bool g_bLockCamera = false;
 D3DXVECTOR3 g_vLightDir(1, 1, 1);
+D3DXVECTOR3 g_vCamPos(0, 0, 0);
 int g_iOctreeDepth = 4;
 int g_iOctreeBaseOffset = -8;
 
@@ -117,6 +119,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   TwAddVarRW(bar, "Normal mapping", TW_TYPE_BOOLCPP, &g_bNormalMapping, "Help='Toggles normal mapping on the terrain.'");
   TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.'");
   TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32, OctreeSetCallback, OctreeGetCallback, NULL, "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
+  TwAddVarRW(bar, "Lock camera", TW_TYPE_BOOLCPP, &g_bLockCamera, "Help='Locks the camera position used for octree shifting, LOD calculations, culling etc.'");
 
   Block::OnCreateDevice(pd3dDevice);
   g_LoadingScreen.OnCreateDevice(pd3dDevice);
@@ -219,7 +222,8 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
   //  }
   //}
   g_Camera.FrameMove(fElapsedTime);
-  Block::OnFrameMove(fElapsedTime, g_Camera.GetEyePt());
+  if (!g_bLockCamera) g_vCamPos = *g_Camera.GetEyePt();
+  Block::OnFrameMove(fElapsedTime, g_vCamPos);
 }
 
 
@@ -248,17 +252,16 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   //  g_LoadingScreen.Draw(pd3dDevice);
   //  return;
   //}
-  
-  const D3DXVECTOR3 *eye = g_Camera.GetEyePt();
-  octree->Relocate((INT)std::floor(eye->x + g_iOctreeBaseOffset + 0.5f),
-                   (INT)std::floor(eye->y + g_iOctreeBaseOffset + 0.5f),
-                   (INT)std::floor(eye->z + g_iOctreeBaseOffset + 0.5f));
+
+  octree->Relocate((INT)std::floor(g_vCamPos.x + g_iOctreeBaseOffset + 0.5f),
+                   (INT)std::floor(g_vCamPos.y + g_iOctreeBaseOffset + 0.5f),
+                   (INT)std::floor(g_vCamPos.z + g_iOctreeBaseOffset + 0.5f));
   octree->ActivateBlocks(pd3dDevice);
 
   D3DXMATRIX world_view_proj = *g_Camera.GetViewMatrix() *
                                *g_Camera.GetProjMatrix();
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
-  g_pCamPosEV->SetFloatVector(*const_cast<D3DXVECTOR3 *>(eye));
+  g_pCamPosEV->SetFloatVector(g_vCamPos);
   g_pNormalMappingEV->SetBool(g_bNormalMapping);
   g_pFogEV->SetBool(g_bFog);
   g_pLightDirEV->SetFloatVector(g_vLightDir);

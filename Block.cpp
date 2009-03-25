@@ -685,10 +685,10 @@ HRESULT Block::ActivateReal(ID3D10Device *device) {
   return S_OK;
 }
 
-void Block::OnFrameMove(float elapsed_time, const D3DXVECTOR3 *camera_pos) {
-  camera_pos_ = *camera_pos;
+void Block::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &camera_pos) {
+  camera_pos_ = camera_pos;
   int count = 0;
-  const int max_count = 8; // TODO: some sort of adpative max_count
+  const int max_count = 20; // TODO: some sort of adpative max_count
   while (!activation_queue_.empty() && count < max_count) {
     Block *block = activation_queue_.top();
     if (block->waiting_for_activation_) {

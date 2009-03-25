@@ -35,7 +35,7 @@ class Block {
   static HRESULT OnCreateDevice(ID3D10Device *device);
   static HRESULT OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect);
   static void OnDestroyDevice(void);
-  static void OnFrameMove(float elapsed_time, const D3DXVECTOR3 *camera_pos);
+  static void OnFrameMove(float elapsed_time, const D3DXVECTOR3 &camera_pos);
 
   static Block *GetBlockByID(const BLOCK_ID &id);
 
@@ -74,7 +74,7 @@ class Block {
   bool active_;
   bool waiting_for_activation_;
   float activation_time_;
-  float distance_to_camera_; // ... when Activate() was called
+  float distance_to_camera_; // ... at the time when Activate() was called
 
   // Rendering resources
   ID3D10Buffer *vertex_buffer_;

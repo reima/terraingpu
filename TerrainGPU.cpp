@@ -27,7 +27,6 @@ ID3D10EffectScalarVariable *g_pFogEV;
 bool g_bLoading = false;
 int g_iLoadingMaxSize = 0;
 
-bool g_bLockCamera = false;
 D3DXVECTOR3 g_vLightDir(1, 1, 1);
 D3DXVECTOR3 g_vCamPos(0, 0, 0);
 int g_iOctreeBaseOffset = -8;
@@ -85,7 +84,7 @@ void TW_CALL GetCallback(void *value, void *clientData) {
 }
 
 void TW_CALL OctreeSetCallback(const void *value, void *clientData) {
-  UINT depth = *(int *)value;
+  UINT depth = *(UINT *)value;
   Config::Set<UINT>("OctreeDepth", depth);
   g_iOctreeBaseOffset = -(1 << (depth - 1));
   SAFE_DELETE(octree);
@@ -102,7 +101,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   Config::Set<bool>("NormalMapping", true);
   Config::Set<bool>("Fog", true);
-  Config::Set<int>("MaxBlocksPerFrame", 16);
+  Config::Set<bool>("LockCamera", false);
+  Config::Set<UINT>("MaxBlocksPerFrame", 16);
   Config::Set<UINT>("OctreeDepth", 4);
 
   TwInit(TW_DIRECT3D10, pd3dDevice);
@@ -123,9 +123,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
              Config::SetCallback<bool>, Config::GetCallback<bool>,
              (void *)&Config::GetKey<bool>("NormalMapping"),
              "Help='Toggles normal mapping on the terrain.' key=n");
-  TwAddVarCB(bar, "Blocks per frame", TW_TYPE_INT32,
-             Config::SetCallback<int>, Config::GetCallback<int>,
-             (void *)&Config::GetKey<int>("MaxBlocksPerFrame"),
+  TwAddVarCB(bar, "Blocks per frame", TW_TYPE_UINT32,
+             Config::SetCallback<UINT>, Config::GetCallback<UINT>,
+             (void *)&Config::GetKey<UINT>("MaxBlocksPerFrame"),
              "Help='Maximum number of blocks to generate each frame.' min=0 max=128");
 
   TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32,
@@ -134,7 +134,11 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
              "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
 
   TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.'");  
-  TwAddVarRW(bar, "Lock camera", TW_TYPE_BOOLCPP, &g_bLockCamera, "Help='Locks the camera position used for octree shifting, LOD calculations, culling etc.' key=l");
+
+  TwAddVarCB(bar, "Lock camera", TW_TYPE_BOOLCPP,
+             Config::SetCallback<bool>, Config::GetCallback<bool>,
+             (void *)&Config::GetKey<bool>("LockCamera"),
+             "Help='Locks the camera position used for octree shifting, LOD calculations, culling etc.' key=l");
 
   Block::OnCreateDevice(pd3dDevice);
   g_LoadingScreen.OnCreateDevice(pd3dDevice);
@@ -217,7 +221,7 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   g_uiHeight = pBackBufferSurfaceDesc->Height;
 
   float aspect = g_uiWidth / (float)g_uiHeight;
-  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 10.0f);
+  g_Camera.SetProjParams(D3DX_PI / 4, aspect, 0.01f, 100.0f);
 
   TwWindowSize(g_uiWidth, g_uiHeight);
 
@@ -238,7 +242,7 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
   //  }
   //}
   g_Camera.FrameMove(fElapsedTime);
-  if (!g_bLockCamera) g_vCamPos = *g_Camera.GetEyePt();
+  if (!Config::Get<bool>("LockCamera")) g_vCamPos = *g_Camera.GetEyePt();
   Block::OnFrameMove(fElapsedTime, g_vCamPos);
 }
 
@@ -274,10 +278,11 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
                    (INT)std::floor(g_vCamPos.z + g_iOctreeBaseOffset + 0.5f));
   octree->ActivateBlocks(pd3dDevice);
 
+  D3DXVECTOR3 eye = *g_Camera.GetEyePt();
   D3DXMATRIX world_view_proj = *g_Camera.GetViewMatrix() *
                                *g_Camera.GetProjMatrix();
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
-  g_pCamPosEV->SetFloatVector(g_vCamPos);
+  g_pCamPosEV->SetFloatVector(eye);
   g_pNormalMappingEV->SetBool(Config::Get<bool>("NormalMapping"));
   g_pFogEV->SetBool(Config::Get<bool>("Fog"));
   g_pLightDirEV->SetFloatVector(g_vLightDir);

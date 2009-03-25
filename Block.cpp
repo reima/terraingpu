@@ -688,9 +688,9 @@ HRESULT Block::ActivateReal(ID3D10Device *device) {
 
 void Block::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &camera_pos) {
   camera_pos_ = camera_pos;
-  int count = 0;
+  UINT count = 0;
   // TODO: some sort of adpative max_count
-  const int max_count = Config::Get<int>("MaxBlocksPerFrame");
+  const UINT max_count = Config::Get<UINT>("MaxBlocksPerFrame");
   while (!activation_queue_.empty() && count < max_count) {
     Block *block = activation_queue_.top();
     if (block->waiting_for_activation_) {

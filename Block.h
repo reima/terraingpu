@@ -39,7 +39,7 @@ class Block {
 
   static Block *GetBlockByID(const BLOCK_ID &id);
 
-  static int queue_size(void) { return activation_queue_.size(); }
+  static UINT queue_size(void) { return activation_queue_.size(); }
 
   // Constants
   static const UINT kVoxelDim;

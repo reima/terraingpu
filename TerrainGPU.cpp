@@ -64,20 +64,24 @@ void WideToMultiByte(LPCWSTR string, std::vector<char> *output) {
   CType._Narrow_s(wstr.data(), wstr.data() + wstr.length(), ' ', &(*output)[0], output->size());
 }
 
-#define CB_FRAME_STATS  0
-#define CB_DEVICE_STATS 1
+#define STATS_FRAME  0
+#define STATS_DEVICE 1
+#define STATS_QUEUE  2
 
-void TW_CALL GetCallback(void *value, void *clientData) {
+void TW_CALL GetStatsCallback(void *value, void *clientData) {
   char **destPtr = (char **)value;
   std::vector<char> str;
   LPCWSTR wstr = L"";
   switch ((int)clientData) {
-    case CB_FRAME_STATS:
+    case STATS_FRAME:
       wstr = DXUTGetFrameStats(DXUTIsVsyncEnabled());
       break;
-    case CB_DEVICE_STATS:
+    case STATS_DEVICE:
       wstr = DXUTGetDeviceStats();
       break;
+    case STATS_QUEUE:
+      *(UINT *)value = Block::queue_size();
+      return;
   }
   WideToMultiByte(wstr, &str);
   TwCopyCDStringToLibrary(destPtr, &str[0]);
@@ -109,12 +113,13 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   TwDefine("GLOBAL fontsize=1");
 
   TwBar *bar = TwNewBar("Stats");
-  TwDefine("Stats position='0 0' size='600 60' valueswidth=550 refresh=1");
-  TwAddVarCB(bar, "Frame", TW_TYPE_CDSTRING, NULL, GetCallback, (void *)CB_FRAME_STATS, "Help='DX10 frame stats.'");
-  TwAddVarCB(bar, "Device", TW_TYPE_CDSTRING, NULL, GetCallback, (void *)CB_DEVICE_STATS, "Help='DX10 device stats.'");
+  TwDefine("Stats position='0 0' size='600 70' valueswidth=550 refresh=0.2");
+  TwAddVarCB(bar, "Frame", TW_TYPE_CDSTRING, NULL, GetStatsCallback, (void *)STATS_FRAME, "Help='DX10 frame stats.'");
+  TwAddVarCB(bar, "Device", TW_TYPE_CDSTRING, NULL, GetStatsCallback, (void *)STATS_DEVICE, "Help='DX10 device stats.'");
+  TwAddVarCB(bar, "Queue", TW_TYPE_UINT32, NULL, GetStatsCallback, (void *)STATS_QUEUE, "Help='Size of queue of blocks waiting for activation.'");
 
   bar = TwNewBar("Settings");
-  TwDefine("Settings position='0 60' size='150 500'");
+  TwDefine("Settings position='0 70' size='150 500'");
   TwAddVarRW(bar, "Fog", TW_TYPE_BOOLCPP,
              (void *)&Config::Get<bool>("Fog"),
              "Help='Toggles fog effect.' key=f");

@@ -6,6 +6,7 @@
 #include "SDKmisc.h"
 
 #include "AntTweakBar.h"
+#include "Config.h"
 
 #include "Block.h"
 #include "Octree.h"
@@ -26,12 +27,9 @@ ID3D10EffectScalarVariable *g_pFogEV;
 bool g_bLoading = false;
 int g_iLoadingMaxSize = 0;
 
-bool g_bNormalMapping = true;
-bool g_bFog = true;
 bool g_bLockCamera = false;
 D3DXVECTOR3 g_vLightDir(1, 1, 1);
 D3DXVECTOR3 g_vCamPos(0, 0, 0);
-int g_iOctreeDepth = 4;
 int g_iOctreeBaseOffset = -8;
 
 Octree *octree;
@@ -86,15 +84,12 @@ void TW_CALL GetCallback(void *value, void *clientData) {
   TwCopyCDStringToLibrary(destPtr, &str[0]);
 }
 
-void TW_CALL OctreeGetCallback(void *value, void *clientData) {
-  *(int *)value = g_iOctreeDepth;
-}
-
 void TW_CALL OctreeSetCallback(const void *value, void *clientData) {
-  g_iOctreeDepth = *(int *)value;
-  g_iOctreeBaseOffset = -(1 << (g_iOctreeDepth - 1));
+  UINT depth = *(int *)value;
+  Config::Set<UINT>("OctreeDepth", depth);
+  g_iOctreeBaseOffset = -(1 << (depth - 1));
   SAFE_DELETE(octree);
-  octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeDepth);
+  octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset, depth);
 }
 
 //--------------------------------------------------------------------------------------
@@ -104,6 +99,11 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
                                       void* pUserContext )
 {
   HRESULT hr;
+
+  Config::Set<bool>("NormalMapping", true);
+  Config::Set<bool>("Fog", true);
+  Config::Set<int>("MaxBlocksPerFrame", 16);
+  Config::Set<UINT>("OctreeDepth", 4);
 
   TwInit(TW_DIRECT3D10, pd3dDevice);
   TwDefine("GLOBAL fontsize=1");
@@ -115,10 +115,25 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   bar = TwNewBar("Settings");
   TwDefine("Settings position='0 60' size='150 500'");
-  TwAddVarRW(bar, "Fog", TW_TYPE_BOOLCPP, &g_bFog, "Help='Toggles fog effect.' key=f");
-  TwAddVarRW(bar, "Normal mapping", TW_TYPE_BOOLCPP, &g_bNormalMapping, "Help='Toggles normal mapping on the terrain.' key=n");
-  TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.'");
-  TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32, OctreeSetCallback, OctreeGetCallback, NULL, "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
+  TwAddVarCB(bar, "Fog", TW_TYPE_BOOLCPP,
+             Config::SetCallback<bool>, Config::GetCallback<bool>,
+             (void *)&Config::GetKey<bool>("Fog"),
+             "Help='Toggles fog effect.' key=f");
+  TwAddVarCB(bar, "Normal mapping", TW_TYPE_BOOLCPP,
+             Config::SetCallback<bool>, Config::GetCallback<bool>,
+             (void *)&Config::GetKey<bool>("NormalMapping"),
+             "Help='Toggles normal mapping on the terrain.' key=n");
+  TwAddVarCB(bar, "Blocks per frame", TW_TYPE_INT32,
+             Config::SetCallback<int>, Config::GetCallback<int>,
+             (void *)&Config::GetKey<int>("MaxBlocksPerFrame"),
+             "Help='Maximum number of blocks to generate each frame.' min=0 max=128");
+
+  TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32,
+             OctreeSetCallback, Config::GetCallback<UINT>,
+             (void *)&Config::GetKey<UINT>("OctreeDepth"),
+             "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
+
+  TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.'");  
   TwAddVarRW(bar, "Lock camera", TW_TYPE_BOOLCPP, &g_bLockCamera, "Help='Locks the camera position used for octree shifting, LOD calculations, culling etc.' key=l");
 
   Block::OnCreateDevice(pd3dDevice);
@@ -181,7 +196,8 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_Camera.SetScalers(0.01f, 1.0f);
   g_Camera.SetDrag(true, 0.5f);
 
-  octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeDepth);
+  octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset,
+                      Config::Get<UINT>("OctreeDepth"));
   octree->ActivateBlocks(pd3dDevice);
 
   //g_bLoading = true;
@@ -262,8 +278,8 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
                                *g_Camera.GetProjMatrix();
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
   g_pCamPosEV->SetFloatVector(g_vCamPos);
-  g_pNormalMappingEV->SetBool(g_bNormalMapping);
-  g_pFogEV->SetBool(g_bFog);
+  g_pNormalMappingEV->SetBool(Config::Get<bool>("NormalMapping"));
+  g_pFogEV->SetBool(Config::Get<bool>("Fog"));
   g_pLightDirEV->SetFloatVector(g_vLightDir);
   g_pTimeEV->SetFloat((float)DXUTGetTime());
 

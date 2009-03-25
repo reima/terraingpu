@@ -115,11 +115,11 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
 
   bar = TwNewBar("Settings");
   TwDefine("Settings position='0 60' size='150 500'");
-  TwAddVarRW(bar, "Fog", TW_TYPE_BOOLCPP, &g_bFog, "Help='Toggles fog effect.'");
-  TwAddVarRW(bar, "Normal mapping", TW_TYPE_BOOLCPP, &g_bNormalMapping, "Help='Toggles normal mapping on the terrain.'");
+  TwAddVarRW(bar, "Fog", TW_TYPE_BOOLCPP, &g_bFog, "Help='Toggles fog effect.' key=f");
+  TwAddVarRW(bar, "Normal mapping", TW_TYPE_BOOLCPP, &g_bNormalMapping, "Help='Toggles normal mapping on the terrain.' key=n");
   TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.'");
   TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32, OctreeSetCallback, OctreeGetCallback, NULL, "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
-  TwAddVarRW(bar, "Lock camera", TW_TYPE_BOOLCPP, &g_bLockCamera, "Help='Locks the camera position used for octree shifting, LOD calculations, culling etc.'");
+  TwAddVarRW(bar, "Lock camera", TW_TYPE_BOOLCPP, &g_bLockCamera, "Help='Locks the camera position used for octree shifting, LOD calculations, culling etc.' key=l");
 
   Block::OnCreateDevice(pd3dDevice);
   g_LoadingScreen.OnCreateDevice(pd3dDevice);

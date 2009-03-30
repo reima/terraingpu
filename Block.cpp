@@ -196,7 +196,8 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
 
   InitQuery(device);
   device->DrawInstanced(kVoxelDim*kVoxelDim, kVoxelDim, 0, 0);
-  if (GetQueryResult() == 0) goto done;
+  UINT nonempty_cell_count = (UINT)GetQueryResult();
+  if (nonempty_cell_count == 0) goto done;
 
   //
   // List edges (pass 2)
@@ -233,7 +234,7 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   //
   {
     D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = sizeof(UINT) * 3*primitive_count_;
+    buffer_desc.ByteWidth = sizeof(UINT) * 15*nonempty_cell_count;
     buffer_desc.Usage = D3D10_USAGE_DEFAULT;
     buffer_desc.BindFlags = D3D10_BIND_INDEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
     buffer_desc.CPUAccessFlags = 0;

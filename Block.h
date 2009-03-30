@@ -52,6 +52,8 @@ class Block {
   static Block *GetBlockByID(const BLOCK_ID &id);
 
   static UINT queue_size(void) { return activation_queue_.size(); }
+  static UINT vertex_buffers_total_size(void) { return vertex_buffers_total_size_; }
+  static UINT index_buffers_total_size(void) { return index_buffers_total_size_; }
 
   // Constants
   static const UINT kVoxelDim;
@@ -71,6 +73,7 @@ class Block {
   ~Block(void);
 
   HRESULT ActivateReal(ID3D10Device *device);
+  void UpdateDistanceToCamera(void);
 
   // Generation steps
   HRESULT RenderDensityVolume(ID3D10Device *device);
@@ -83,10 +86,15 @@ class Block {
   D3DXVECTOR3 position_;
   BLOCK_ID id_;
   INT primitive_count_;
+  UINT index_count_;
   bool active_;
   bool waiting_for_activation_;
   float activation_time_;
   float distance_to_camera_; // ... at the time when Activate() was called
+
+  // Statistics...
+  static DWORD vertex_buffers_total_size_;
+  static DWORD index_buffers_total_size_;
 
   // Rendering resources
   ID3D10Buffer *vertex_buffer_;

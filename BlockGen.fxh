@@ -307,18 +307,18 @@ void ListVerts_GS(point VS_LISTVERTS_OUTPUT Input[1],
   GS_LISTVERTS_OUTPUT Output;
   uint pos = Input[0].Cell & 0xFFFFFF00;
   // TODO: Avoid streaming out non-existing edges, i.e. make ifs work
-  //if (Input[0].Cell & EDGE3) {
+  if (Input[0].Cell & EDGE3) {
     Output.Edge = pos | 3;
     Stream.Append(Output);
-  //}
-  //if (Input[0].Cell & EDGE0) {
+  }
+  if (Input[0].Cell & EDGE0) {
     Output.Edge = pos | 0;
     Stream.Append(Output);
-  //}
-  //if (Input[0].Cell & EDGE8) {
+  }
+  if (Input[0].Cell & EDGE8) {
     Output.Edge = pos | 8;
     Stream.Append(Output);
-  //}
+  }
 }
 
 
@@ -459,8 +459,8 @@ void GenIndices_GS(point VS_GENINDICES_OUTPUT Input[1],
   const uint nCase = Input[0].Cell & 0xFF;
   const uint nTris = numTris[nCase];
   const uint3 vCellPos = int3((Input[0].Cell >>  8) & 0xFF,
-                             (Input[0].Cell >> 16) & 0xFF,
-                             (Input[0].Cell >> 24) & 0xFF);
+                              (Input[0].Cell >> 16) & 0xFF,
+                              (Input[0].Cell >> 24) & 0xFF);
   if (vCellPos.x == VoxelDimMinusOne.x || vCellPos.y == VoxelDimMinusOne.x || vCellPos.z == VoxelDimMinusOne.x) return;
   GS_GENINDICES_OUTPUT Output;
   int3 vEdgePos;

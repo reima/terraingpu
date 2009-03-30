@@ -27,7 +27,7 @@ ID3D10EffectScalarVariable *g_pFogEV;
 bool g_bLoading = false;
 int g_iLoadingMaxSize = 0;
 
-D3DXVECTOR3 g_vLightDir(1, 1, 1);
+D3DXVECTOR3 g_vLightDir(0, 1, 1);
 D3DXVECTOR3 g_vCamPos(0, 0, 0);
 int g_iOctreeBaseOffset = -8;
 
@@ -67,6 +67,7 @@ void WideToMultiByte(LPCWSTR string, std::vector<char> *output) {
 #define STATS_FRAME  0
 #define STATS_DEVICE 1
 #define STATS_QUEUE  2
+#define STATS_MEMORY 3
 
 void TW_CALL GetStatsCallback(void *value, void *clientData) {
   char **destPtr = (char **)value;
@@ -81,6 +82,9 @@ void TW_CALL GetStatsCallback(void *value, void *clientData) {
       break;
     case STATS_QUEUE:
       *(UINT *)value = Block::queue_size();
+      return;
+    case STATS_MEMORY:
+      *(UINT *)value = Block::vertex_buffers_total_size() + Block::index_buffers_total_size();
       return;
   }
   WideToMultiByte(wstr, &str);
@@ -117,6 +121,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   TwAddVarCB(bar, "Frame", TW_TYPE_CDSTRING, NULL, GetStatsCallback, (void *)STATS_FRAME, "Help='DX10 frame stats.'");
   TwAddVarCB(bar, "Device", TW_TYPE_CDSTRING, NULL, GetStatsCallback, (void *)STATS_DEVICE, "Help='DX10 device stats.'");
   TwAddVarCB(bar, "Queue", TW_TYPE_UINT32, NULL, GetStatsCallback, (void *)STATS_QUEUE, "Help='Size of queue of blocks waiting for activation.'");
+  TwAddVarCB(bar, "Memory", TW_TYPE_UINT32, NULL, GetStatsCallback, (void *)STATS_MEMORY, "Help='Block memory usage stats.'");
 
   bar = TwNewBar("Settings");
   TwDefine("Settings position='0 70' size='150 500'");
@@ -132,7 +137,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   TwAddVarCB(bar, "Octree depth", TW_TYPE_UINT32,
              OctreeSetCallback, Config::GetCallback<UINT>,
              (void *)&Config::GetKey<UINT>("OctreeDepth"),
-             "Help='Max. depth of the terrain octree (1-4)' min=1 max=4");
+             "Help='Max. depth of the terrain octree (1-6)' min=1 max=6");
 
   TwAddVarRW(bar, "Light direction", TW_TYPE_DIR3F, &g_vLightDir, "Help='Global light direction.' axisx=x axisy=y axisz=-z");  
 
@@ -194,18 +199,18 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
     SAFE_RELEASE(srview);
   }
 
-  D3DXVECTOR3 eye(0.0f, 1.0f, 0.0f);
-  D3DXVECTOR3 lookat(0.0f, 1.0f, 1.0f);
+  D3DXVECTOR3 eye(0.0f, 1.25f, 0.0f);
+  D3DXVECTOR3 lookat(0.0f, 1.25f, -1.0f);
   g_Camera.SetViewParams(&eye, &lookat);
   g_Camera.SetScalers(0.01f, 1.0f);
-  g_Camera.SetDrag(true, 0.5f);
+  //g_Camera.SetDrag(true, 0.5f);
 
   octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset,
                       Config::Get<UINT>("OctreeDepth"));
   octree->ActivateBlocks(pd3dDevice);
 
-  //g_bLoading = true;
-  //g_iLoadingMaxSize = Block::queue_size();
+  g_bLoading = true;
+  g_iLoadingMaxSize = Block::queue_size();
 
   return S_OK;
 }
@@ -234,13 +239,13 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
 //--------------------------------------------------------------------------------------
 void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext )
 {
-  //if (g_bLoading) {
-  //  float loaded = 1 - (float)Block::queue_size() / g_iLoadingMaxSize;
-  //  g_LoadingScreen.set_loaded(loaded);
-  //  if (loaded > 0.9999f) {
-  //    g_bLoading = false;
-  //  }
-  //}
+  if (g_bLoading) {
+    float loaded = 1 - (float)Block::queue_size() / g_iLoadingMaxSize;
+    g_LoadingScreen.set_loaded(loaded);
+    if (loaded > 0.9999f) {
+      g_bLoading = false;
+    }
+  }
   g_Camera.FrameMove(fElapsedTime);
   if (!Config::Get<bool>("LockCamera")) g_vCamPos = *g_Camera.GetEyePt();
   Block::OnFrameMove(fElapsedTime, g_vCamPos);
@@ -268,10 +273,10 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   pd3dDevice->ClearRenderTargetView( DXUTGetD3D10RenderTargetView(), ClearColor );
   pd3dDevice->ClearDepthStencilView( DXUTGetD3D10DepthStencilView(), D3D10_CLEAR_DEPTH, 1.0, 0 );
 
-  //if (g_bLoading) {
-  //  g_LoadingScreen.Draw(pd3dDevice);
-  //  return;
-  //}
+  if (g_bLoading) {
+    g_LoadingScreen.Draw(pd3dDevice);
+    return;
+  }
 
   octree->Relocate((INT)std::floor(g_vCamPos.x + g_iOctreeBaseOffset + 0.5f),
                    (INT)std::floor(g_vCamPos.y + g_iOctreeBaseOffset + 0.5f),

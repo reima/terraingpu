@@ -12,6 +12,7 @@ const UINT Block::kVoxelDimWithMargins = Block::kVoxelDim+2*Block::kMargin;
 const UINT Block::kVoxelDimWithMarginsMinusOne = Block::kVoxelDimWithMargins-1;
 const float Block::kInvVoxelDimWithMargins = 1.0f/Block::kVoxelDimWithMargins;
 const float Block::kInvVoxelDimWithMarginsMinusOne = 1.0f/Block::kVoxelDimWithMarginsMinusOne;
+// TODO: Currently octree shifting only works with kBlockSize = 1.0f;
 const float Block::kBlockSize = 1.0f;
 
 ID3D10InputLayout *Block::input_layout_ = NULL;
@@ -42,18 +43,30 @@ D3DXVECTOR3 Block::camera_pos_;
 Block::BLOCK_CACHE Block::cache_;
 Block::BLOCK_QUEUE Block::activation_queue_;
 
+DWORD Block::vertex_buffers_total_size_ = 0;
+DWORD Block::index_buffers_total_size_ = 0;
+
+namespace {
+  inline UINT GetBufferSize(ID3D10Buffer *buffer) {
+    D3D10_BUFFER_DESC desc;
+    buffer->GetDesc(&desc);
+    return desc.ByteWidth;
+  }
+}
+
 Block::Block(const D3DXVECTOR3 &position)
     : position_(position),
       vertex_buffer_(NULL),
       index_buffer_(NULL),
       primitive_count_(-1),
+      index_count_(0),
       active_(false),
       waiting_for_activation_(false),
       activation_time_(0.0),
       distance_to_camera_(0.0) {
-  id_.x = static_cast<int>(position.x);
-  id_.y = static_cast<int>(position.y);
-  id_.z = static_cast<int>(position.z);
+  id_.x = static_cast<int>(position.x / kBlockSize);
+  id_.y = static_cast<int>(position.y / kBlockSize);
+  id_.z = static_cast<int>(position.z / kBlockSize);
 }
 
 Block::Block(const BLOCK_ID &id)
@@ -61,34 +74,36 @@ Block::Block(const BLOCK_ID &id)
       vertex_buffer_(NULL),
       index_buffer_(NULL),
       primitive_count_(-1),
+      index_count_(0),
       active_(false),
       waiting_for_activation_(false),
       activation_time_(0.0),
       distance_to_camera_(0.0) {
-  position_.x = static_cast<FLOAT>(id.x);
-  position_.y = static_cast<FLOAT>(id.y);
-  position_.z = static_cast<FLOAT>(id.z);
+  position_.x = static_cast<FLOAT>(id.x) * kBlockSize;
+  position_.y = static_cast<FLOAT>(id.y) * kBlockSize;
+  position_.z = static_cast<FLOAT>(id.z) * kBlockSize;
 }
 
 Block::~Block(void) {
-  SAFE_RELEASE(vertex_buffer_);
-  SAFE_RELEASE(index_buffer_);
+  Deactivate();
 }
 
 void Block::Activate(void) {
   if (waiting_for_activation_) return;
   if (active_) return;
   waiting_for_activation_ = true;
-  D3DXVECTOR3 center = position_ + D3DXVECTOR3(0.5f, 0.5f, 0.5f) * Block::kBlockSize;
-  D3DXVECTOR3 distance_vector = center - camera_pos_;
-  distance_to_camera_ = D3DXVec3Length(&distance_vector);
+  UpdateDistanceToCamera();
   activation_queue_.push(this);
 }
 
 void Block::Deactivate(void) {
   waiting_for_activation_ = false;
   if (!active_) return;
+  if (vertex_buffer_)
+    vertex_buffers_total_size_ -= GetBufferSize(vertex_buffer_);
   SAFE_RELEASE(vertex_buffer_);
+  if (index_buffer_)
+    index_buffers_total_size_ -= GetBufferSize(index_buffer_);
   SAFE_RELEASE(index_buffer_);
   active_ = false;
 }
@@ -164,6 +179,7 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
     buffer_desc.CPUAccessFlags = 0;
     buffer_desc.MiscFlags = 0;
     V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &vertex_buffer_));
+    vertex_buffers_total_size_ += buffer_desc.ByteWidth;
   }
 
   //
@@ -227,6 +243,7 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
     buffer_desc.CPUAccessFlags = 0;
     buffer_desc.MiscFlags = 0;
     V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &vertex_buffer_));
+    vertex_buffers_total_size_ += buffer_desc.ByteWidth;
   }
 
   //
@@ -234,12 +251,13 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   //
   {
     D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = sizeof(UINT) * 15*nonempty_cell_count;
+    buffer_desc.ByteWidth = sizeof(UINT) * 15*nonempty_cell_count; // Worst case size!
     buffer_desc.Usage = D3D10_USAGE_DEFAULT;
     buffer_desc.BindFlags = D3D10_BIND_INDEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
     buffer_desc.CPUAccessFlags = 0;
     buffer_desc.MiscFlags = 0;
     V_RETURN(device->CreateBuffer(&buffer_desc, NULL, &index_buffer_));
+    index_buffers_total_size_ += buffer_desc.ByteWidth;
   }
 
   //
@@ -293,7 +311,9 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   V_RETURN(indices_volume_ev_->SetResource(indices_volume_srv_));
   V_RETURN(effect_->GetTechniqueByName("GenIndices")->GetPassByIndex(1)->Apply(0));
 
+  InitQuery(device);
   device->DrawAuto();
+  index_count_ = (UINT)GetQueryResult();
 #endif
 
   //
@@ -330,7 +350,7 @@ void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) {
   device->DrawAuto();
 #elif METHOD == 3
   device->IASetIndexBuffer(index_buffer_, DXGI_FORMAT_R32_UINT, 0);
-  device->DrawIndexed(3*primitive_count_, 0, 0);
+  device->DrawIndexed(index_count_, 0, 0);
 #endif
 }
 
@@ -668,6 +688,12 @@ UINT64 Block::GetQueryResult(void) {
   return query_data.NumPrimitivesWritten;
 }
 
+void Block::UpdateDistanceToCamera(void) {
+  D3DXVECTOR3 center = position_ + D3DXVECTOR3(0.5f, 0.5f, 0.5f) * Block::kBlockSize;
+  D3DXVECTOR3 distance_vector = center - camera_pos_;
+  distance_to_camera_ = D3DXVec3Length(&distance_vector);
+}
+
 HRESULT Block::ActivateReal(ID3D10Device *device) {
   if (active_) return S_OK;
 
@@ -693,10 +719,24 @@ void Block::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &camera_pos) {
   UINT count = 0;
   // TODO: some sort of adpative max_count
   const UINT max_count = Config::Get<UINT>("MaxBlocksPerFrame");
+
+  // Maybe only do this every second or so?
+  //std::vector<Block *> blocks;
+  //while (!activation_queue_.empty()) {
+  //  Block *block = activation_queue_.top();
+  //  block->UpdateDistanceToCamera();
+  //  blocks.push_back(block);
+  //  activation_queue_.pop();
+  //}
+  //for (std::vector<Block *>::const_iterator it = blocks.begin(); it != blocks.end(); ++it) {
+  //  activation_queue_.push(*it);
+  //}
+
   while (!activation_queue_.empty() && count < max_count) {
     Block *block = activation_queue_.top();
     if (block->waiting_for_activation_) {
       block->ActivateReal(DXUTGetD3D10Device());
+      //if (block->primitive_count_ > 0)
       count++;
     }
     activation_queue_.pop();

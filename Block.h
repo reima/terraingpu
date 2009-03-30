@@ -1,7 +1,19 @@
 #pragma once
+#define USE_BOOST 1
+
 #include "DXUT.h"
-#include <functional>
+
+#ifdef USE_BOOST
+#include <boost/unordered_map.hpp>
+#define hash_t boost::hash
+#define unordered_map_t boost::unordered_map
+#else
 #include <unordered_map>
+#define hash_t std::tr1::hash
+#define unordered_map_t std::tr1::unordered_map
+#endif
+
+#include <functional>
 #include <queue>
 
 struct BLOCK_ID {
@@ -11,7 +23,7 @@ struct BLOCK_ID {
   int x, y, z;
 };
 
-size_t std::tr1::hash<BLOCK_ID>::operator ()(const BLOCK_ID &id) const {
+size_t hash_t<BLOCK_ID>::operator ()(const BLOCK_ID &id) const {
   return ((static_cast<size_t>(id.y) & 0x0FF) << 24) |
          ((static_cast<size_t>(id.x) & 0xFFF) << 12) |
          ((static_cast<size_t>(id.z) & 0xFFF) <<  0);
@@ -107,7 +119,7 @@ class Block {
   static ID3D10Query *query_;
 
   // Block cache
-  typedef std::tr1::unordered_map<BLOCK_ID, Block *> BLOCK_CACHE;
+  typedef unordered_map_t<BLOCK_ID, Block *> BLOCK_CACHE;
   static BLOCK_CACHE cache_;
 
   // Activation queue

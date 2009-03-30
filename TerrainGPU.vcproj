@@ -30,7 +30,8 @@
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="AntTweakBar-DLL in Ausgabeverzeichnis kopieren..."
-				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)&quot;&#x0D;&#x0A;"
+				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)\AntTweakBar.dll&quot;"
+				AdditionalDependencies="&quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot;"
 				Outputs="&quot;$(TargetDir)\AntTweakBar.dll&quot;"
 			/>
 			<Tool
@@ -45,7 +46,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="DXUT\Core;DXUT\Optional;AntTweakBar\include"
+				AdditionalIncludeDirectories="DXUT\Core;DXUT\Optional;AntTweakBar\include;boost_1_38_0"
 				PreprocessorDefinitions="WIN32;_DEBUG;DEBUG;PROFILE;_WINDOWS;D3DXFX_LARGEADDRESS_HANDLE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="0"
@@ -116,7 +117,8 @@
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="AntTweakBar-DLL in Ausgabeverzeichnis kopieren..."
-				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)&quot;&#x0D;&#x0A;"
+				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)\AntTweakBar.dll&quot;"
+				AdditionalDependencies="&quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot;"
 				Outputs="&quot;$(TargetDir)\AntTweakBar.dll&quot;"
 			/>
 			<Tool
@@ -133,7 +135,7 @@
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				OmitFramePointers="true"
-				AdditionalIncludeDirectories="DXUT\Core;DXUT\Optional;AntTweakBar\include"
+				AdditionalIncludeDirectories="DXUT\Core;DXUT\Optional;AntTweakBar\include;boost_1_38_0"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;D3DXFX_LARGEADDRESS_HANDLE"
 				StringPooling="true"
 				ExceptionHandling="1"

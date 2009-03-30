@@ -220,7 +220,7 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   //
   {
     D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3) * 3*primitive_count_;
+    buffer_desc.ByteWidth = 2*sizeof(D3DXVECTOR3) * primitive_count_;
     buffer_desc.Usage = D3D10_USAGE_DEFAULT;
     buffer_desc.BindFlags = D3D10_BIND_VERTEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
     buffer_desc.CPUAccessFlags = 0;

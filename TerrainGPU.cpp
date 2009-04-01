@@ -11,6 +11,7 @@
 #include "Block.h"
 #include "Octree.h"
 #include "LoadingScreen.h"
+#include "Frustum.h"
 
 #include <iostream>
 #include <sstream>
@@ -36,6 +37,7 @@ LoadingScreen g_LoadingScreen;
 
 UINT g_uiWidth, g_uiHeight;
 CFirstPersonCamera g_Camera;
+Frustum g_Frustum(&g_Camera);
 
 //--------------------------------------------------------------------------------------
 // Reject any D3D10 devices that aren't acceptable by returning false
@@ -247,6 +249,7 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
     }
   }
   g_Camera.FrameMove(fElapsedTime);
+  g_Frustum.Update();
   if (!Config::Get<bool>("LockCamera")) g_vCamPos = *g_Camera.GetEyePt();
   Block::OnFrameMove(fElapsedTime, g_vCamPos);
 }

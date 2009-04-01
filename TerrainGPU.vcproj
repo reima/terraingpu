@@ -30,7 +30,7 @@
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="AntTweakBar-DLL in Ausgabeverzeichnis kopieren..."
-				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)\AntTweakBar.dll&quot;"
+				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)\AntTweakBar.dll&quot;&#x0D;&#x0A;"
 				AdditionalDependencies="&quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot;"
 				Outputs="&quot;$(TargetDir)\AntTweakBar.dll&quot;"
 			/>
@@ -117,7 +117,7 @@
 			<Tool
 				Name="VCCustomBuildTool"
 				Description="AntTweakBar-DLL in Ausgabeverzeichnis kopieren..."
-				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)\AntTweakBar.dll&quot;"
+				CommandLine="copy &quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot; &quot;$(TargetDir)\AntTweakBar.dll&quot;&#x0D;&#x0A;"
 				AdditionalDependencies="&quot;$(ProjectDir)AntTweakBar\lib\AntTweakBar.dll&quot;"
 				Outputs="&quot;$(TargetDir)\AntTweakBar.dll&quot;"
 			/>
@@ -301,6 +301,26 @@
 			</File>
 			<File
 				RelativePath=".\Tables.fxh"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="Geometry"
+			>
+			<File
+				RelativePath=".\AxisAlignedBox.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\AxisAlignedBox.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Frustum.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Frustum.h"
 				>
 			</File>
 		</Filter>

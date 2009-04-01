@@ -306,7 +306,6 @@ void ListVerts_GS(point VS_LISTVERTS_OUTPUT Input[1],
                  inout PointStream<GS_LISTVERTS_OUTPUT> Stream) {
   GS_LISTVERTS_OUTPUT Output;
   uint pos = Input[0].Cell & 0xFFFFFF00;
-  // TODO: Avoid streaming out non-existing edges, i.e. make ifs work
   if (Input[0].Cell & EDGE3) {
     Output.Edge = pos | 3;
     Stream.Append(Output);

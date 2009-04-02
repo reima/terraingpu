@@ -70,10 +70,9 @@ void WideToMultiByte(LPCWSTR string, std::vector<char> *output) {
 #define STATS_DEVICE 1
 #define STATS_QUEUE  2
 #define STATS_MEMORY 3
+#define STATS_COUNTS 4
 
 void TW_CALL GetStatsCallback(void *value, void *clientData) {
-  char **destPtr = (char **)value;
-  std::vector<char> str;
   LPCWSTR wstr = L"";
   switch ((int)clientData) {
     case STATS_FRAME:
@@ -88,8 +87,14 @@ void TW_CALL GetStatsCallback(void *value, void *clientData) {
     case STATS_MEMORY:
       *(UINT *)value = Block::vertex_buffers_total_size() + Block::index_buffers_total_size();
       return;
+    case STATS_COUNTS:
+      //*(UINT *)value = Block::draw_calls();
+      *(UINT *)value = Block::primitives_drawn();
+      return;
   }
+  std::vector<char> str;
   WideToMultiByte(wstr, &str);
+  char **destPtr = (char **)value;
   TwCopyCDStringToLibrary(destPtr, &str[0]);
 }
 
@@ -124,6 +129,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   TwAddVarCB(bar, "Device", TW_TYPE_CDSTRING, NULL, GetStatsCallback, (void *)STATS_DEVICE, "Help='DX10 device stats.'");
   TwAddVarCB(bar, "Queue", TW_TYPE_UINT32, NULL, GetStatsCallback, (void *)STATS_QUEUE, "Help='Size of queue of blocks waiting for activation.'");
   TwAddVarCB(bar, "Memory", TW_TYPE_UINT32, NULL, GetStatsCallback, (void *)STATS_MEMORY, "Help='Block memory usage stats.'");
+  TwAddVarCB(bar, "Draws", TW_TYPE_UINT32, NULL, GetStatsCallback, (void *)STATS_COUNTS, "Help='Number of blocks drawn this frame.'");
 
   bar = TwNewBar("Settings");
   TwDefine("Settings position='0 70' size='150 500'");
@@ -250,8 +256,12 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
   }
   g_Camera.FrameMove(fElapsedTime);
   g_Frustum.Update();
-  if (!Config::Get<bool>("LockCamera")) g_vCamPos = *g_Camera.GetEyePt();
+  if (!Config::Get<bool>("LockCamera")) {
+    g_vCamPos = *g_Camera.GetEyePt();
+    octree->Cull(g_Frustum);
+  }
   Block::OnFrameMove(fElapsedTime, g_vCamPos);
+  Block::ResetStats();
 }
 
 

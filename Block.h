@@ -43,6 +43,7 @@ class Block {
 
   const BLOCK_ID &id(void) const { return id_; }
   bool active(void) const { return active_; }
+  UINT primitive_count(void) const { return index_count_ / 3; }
 
   static HRESULT OnCreateDevice(ID3D10Device *device);
   static HRESULT OnLoadEffect(ID3D10Device *device, ID3D10Effect *effect);
@@ -54,6 +55,9 @@ class Block {
   static UINT queue_size(void) { return activation_queue_.size(); }
   static UINT vertex_buffers_total_size(void) { return vertex_buffers_total_size_; }
   static UINT index_buffers_total_size(void) { return index_buffers_total_size_; }
+  static void ResetStats(void) { draw_calls_ = primitives_drawn_ = 0; }
+  static UINT draw_calls(void) { return draw_calls_; }
+  static UINT primitives_drawn(void) { return primitives_drawn_; }
 
   // Constants
   static const UINT kVoxelDim;
@@ -95,6 +99,8 @@ class Block {
   // Statistics...
   static DWORD vertex_buffers_total_size_;
   static DWORD index_buffers_total_size_;
+  static UINT draw_calls_;
+  static UINT primitives_drawn_;
 
   // Rendering resources
   ID3D10Buffer *vertex_buffer_;

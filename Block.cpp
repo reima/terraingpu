@@ -45,6 +45,8 @@ Block::BLOCK_QUEUE Block::activation_queue_;
 
 DWORD Block::vertex_buffers_total_size_ = 0;
 DWORD Block::index_buffers_total_size_ = 0;
+UINT Block::draw_calls_ = 0;
+UINT Block::primitives_drawn_ = 0;
 
 namespace {
   inline UINT GetBufferSize(ID3D10Buffer *buffer) {
@@ -348,10 +350,13 @@ void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) {
   technique->GetPassByIndex(0)->Apply(0);
 #if METHOD == 2
   device->DrawAuto();
+  primitives_drawn_ += primitive_count_;
 #elif METHOD == 3
   device->IASetIndexBuffer(index_buffer_, DXGI_FORMAT_R32_UINT, 0);
   device->DrawIndexed(index_count_, 0, 0);
+  primitives_drawn_ += index_count_ / 3;
 #endif
+  draw_calls_++;
 }
 
 HRESULT Block::OnCreateDevice(ID3D10Device *device) {

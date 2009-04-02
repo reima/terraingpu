@@ -55,5 +55,17 @@ bool Frustum::PointInside(const D3DXVECTOR3 &point) const {
 
 bool Frustum::AABInside(const AxisAlignedBox &box) const {
   // TODO: Implement according to http://www.lighthouse3d.com/opengl/viewfrustum/index.php?gatest2
+  D3DXVECTOR3 corners[8];
+  box.GetCorners(corners);
+
+  UINT in, out;
+  for (size_t i = 0; i < 6; ++i) {
+    in = out = 0;
+    for (size_t k = 0; k < 8 && (in == 0 || out == 0); ++k) {
+      if (D3DXPlaneDotCoord(&planes_[i], &corners[k]) < 0) out++;
+      else in++;
+    }
+    if (in == 0) return false;
+  }
   return true;
 }

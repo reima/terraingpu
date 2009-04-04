@@ -14,6 +14,7 @@ cbuffer cb2 {
 
 cbuffer cb3 {
   bool g_bNormalMapping = true;
+  bool g_bDetailTex = true;
   bool g_bFog = true;
   float3 g_vLightDir = float3(0, 1, 1);
 }
@@ -119,8 +120,6 @@ VS_BLOCK_OUTPUT Block_VS(VS_BLOCK_INPUT Input) {
   return Output;
 }
 
-#define DETAIL_TEX 1
-
 float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   const float2 texX = Input.WorldPos.yz*4;
   const float2 texY = Input.WorldPos.xz*3;
@@ -132,14 +131,14 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   float3 normalX = g_tNormalX.Sample(ssTrilinearRepeat, texX)*2-1;
   float3 normalY = g_tNormalY.Sample(ssTrilinearRepeat, texY)*2-1;
   float3 normalZ = g_tNormalZ.Sample(ssTrilinearRepeat, texZ)*2-1;
-#if (DETAIL_TEX == 1)
-  colorX *= g_tDetail.Sample(ssTrilinearRepeat, texX*7.97);
-  colorY *= g_tDetail.Sample(ssTrilinearRepeat, texY*7.95);
-  colorZ *= g_tDetail.Sample(ssTrilinearRepeat, texZ*7.98);
-  normalX += g_tDetailNormals.Sample(ssTrilinearRepeat, texX*5)*2-1;
-  normalY += g_tDetailNormals.Sample(ssTrilinearRepeat, texY*5)*2-1;
-  normalZ += g_tDetailNormals.Sample(ssTrilinearRepeat, texZ*5)*2-1;
-#endif
+  if (g_bDetailTex) {
+    colorX *= g_tDetail.Sample(ssTrilinearRepeat, texX*7.97);
+    colorY *= g_tDetail.Sample(ssTrilinearRepeat, texY*7.95);
+    colorZ *= g_tDetail.Sample(ssTrilinearRepeat, texZ*7.98);
+    normalX += g_tDetailNormals.Sample(ssTrilinearRepeat, texX*5)*2-1;
+    normalY += g_tDetailNormals.Sample(ssTrilinearRepeat, texY*5)*2-1;
+    normalZ += g_tDetailNormals.Sample(ssTrilinearRepeat, texZ*5)*2-1;
+  }
   float3 N = normalize(Input.Normal);
   float3 blend_weights = abs(N) - 0.1;
   blend_weights *= 12;

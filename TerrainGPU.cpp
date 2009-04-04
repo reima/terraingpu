@@ -21,6 +21,7 @@ ID3D10Effect *g_pEffect;
 ID3D10EffectMatrixVariable *g_pWorldViewProjEV;
 ID3D10EffectVectorVariable *g_pCamPosEV;
 ID3D10EffectScalarVariable *g_pNormalMappingEV;
+ID3D10EffectScalarVariable *g_pDetailTexEV;
 ID3D10EffectVectorVariable *g_pLightDirEV;
 ID3D10EffectScalarVariable *g_pTimeEV;
 ID3D10EffectScalarVariable *g_pFogEV;
@@ -115,6 +116,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   HRESULT hr;
 
   Config::Set<bool>("NormalMapping", true);
+  Config::Set<bool>("DetailTex", true);
   Config::Set<bool>("Fog", true);
   Config::Set<bool>("LockCamera", false);
   Config::Set<UINT>("MaxBlocksPerFrame", 16);
@@ -139,6 +141,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   TwAddVarRW(bar, "Normal mapping", TW_TYPE_BOOLCPP,
              (void *)&Config::Get<bool>("NormalMapping"),
              "Help='Toggles normal mapping on the terrain.' key=n");
+  TwAddVarRW(bar, "Detail textures", TW_TYPE_BOOLCPP,
+             (void *)&Config::Get<bool>("DetailTex"),
+             "Help='High quality detail textures.'");
   TwAddVarRW(bar, "Blocks per frame", TW_TYPE_UINT32,
              (void *)&Config::Get<UINT>("MaxBlocksPerFrame"),
              "Help='Maximum number of blocks to generate each frame.' min=0 max=128");
@@ -180,6 +185,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_pWorldViewProjEV = g_pEffect->GetVariableByName("g_mWorldViewProj")->AsMatrix();
   g_pCamPosEV = g_pEffect->GetVariableByName("g_vCamPos")->AsVector();
   g_pNormalMappingEV = g_pEffect->GetVariableByName("g_bNormalMapping")->AsScalar();
+  g_pDetailTexEV = g_pEffect->GetVariableByName("g_bDetailTex")->AsScalar();
   g_pFogEV = g_pEffect->GetVariableByName("g_bFog")->AsScalar();
   g_pLightDirEV = g_pEffect->GetVariableByName("g_vLightDir")->AsVector();
   g_pTimeEV = g_pEffect->GetVariableByName("g_fTime")->AsScalar();
@@ -308,6 +314,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   g_pWorldViewProjEV->SetMatrix(world_view_proj);
   g_pCamPosEV->SetFloatVector(eye);
   g_pNormalMappingEV->SetBool(Config::Get<bool>("NormalMapping"));
+  g_pDetailTexEV->SetBool(Config::Get<bool>("DetailTex"));
   g_pFogEV->SetBool(Config::Get<bool>("Fog"));
   g_pLightDirEV->SetFloatVector(g_vLightDir);
   g_pTimeEV->SetFloat((float)DXUTGetTime());

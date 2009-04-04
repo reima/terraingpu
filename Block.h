@@ -1,5 +1,5 @@
 #pragma once
-#define USE_BOOST 1
+//#define USE_BOOST 1
 
 #include "DXUT.h"
 

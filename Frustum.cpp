@@ -23,16 +23,16 @@ void Frustum::Update(void) {
                          view_proj._24 - view_proj._21,
                          view_proj._34 - view_proj._31,
                          view_proj._44 - view_proj._41);
-  // Bottom
-  planes_[2] = D3DXPLANE(view_proj._14 + view_proj._12,
-                         view_proj._24 + view_proj._22,
-                         view_proj._34 + view_proj._32,
-                         view_proj._44 + view_proj._42);
   // Top
-  planes_[3] = D3DXPLANE(view_proj._14 - view_proj._12,
+  planes_[2] = D3DXPLANE(view_proj._14 - view_proj._12,
                          view_proj._24 - view_proj._22,
                          view_proj._34 - view_proj._32,
                          view_proj._44 - view_proj._42);
+  // Bottom
+  planes_[3] = D3DXPLANE(view_proj._14 + view_proj._12,
+                         view_proj._24 + view_proj._22,
+                         view_proj._34 + view_proj._32,
+                         view_proj._44 + view_proj._42);
   // Near
   planes_[4] = D3DXPLANE(view_proj._13,
                          view_proj._23,
@@ -43,6 +43,9 @@ void Frustum::Update(void) {
                          view_proj._24 - view_proj._23,
                          view_proj._34 - view_proj._33,
                          view_proj._44 - view_proj._43);
+
+  for (size_t i = 0; i < 6; ++i)
+    D3DXPlaneNormalize(&planes_[i], &planes_[i]);
 }
 
 bool Frustum::PointInside(const D3DXVECTOR3 &point) const {

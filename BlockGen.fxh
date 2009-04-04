@@ -465,20 +465,13 @@ void GenIndices_GS(point VS_GENINDICES_OUTPUT Input[1],
   int3 vEdgePos;
   for (uint i = 0; i < nTris; ++i) {
     const int3 edges = triTable[nCase][i];
-    vEdgePos = vCellPos + edgeStartCorner[edges.x];
-    vEdgePos.x = vEdgePos.x*3 + edgeAxis[edges.x];
-    Output.Index = g_tIndicesVolume.Load(int4(vEdgePos, 0));
-    Stream.Append(Output);
-
-    vEdgePos = vCellPos + edgeStartCorner[edges.y];
-    vEdgePos.x = vEdgePos.x*3 + edgeAxis[edges.y];
-    Output.Index = g_tIndicesVolume.Load(int4(vEdgePos, 0));
-    Stream.Append(Output);
-
-    vEdgePos = vCellPos + edgeStartCorner[edges.z];
-    vEdgePos.x = vEdgePos.x*3 + edgeAxis[edges.z];
-    Output.Index = g_tIndicesVolume.Load(int4(vEdgePos, 0));
-    Stream.Append(Output);
+    [unroll(3)]
+    for (uint j = 0; j < 3; ++j) {
+      vEdgePos = vCellPos + edgeStartCorner[edges[j]];
+      vEdgePos.x = vEdgePos.x*3 + edgeAxis[edges[j]];
+      Output.Index = g_tIndicesVolume.Load(int4(vEdgePos, 0));
+      Stream.Append(Output);
+    }
   }
 }
 

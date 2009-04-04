@@ -185,22 +185,28 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_pTimeEV = g_pEffect->GetVariableByName("g_fTime")->AsScalar();
   {
     ID3D10ShaderResourceView *srview;
-    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-diffuse.jpg", NULL, NULL, &srview, NULL));
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\235-diffuse.jpg", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tDiffuseX")->AsShaderResource()->SetResource(srview);
     g_pEffect->GetVariableByName("g_tDiffuseZ")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
-    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-diffuse.jpg", NULL, NULL, &srview, NULL));
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\1792-diffuse.jpg", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tDiffuseY")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
-    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\863-normal.jpg", NULL, NULL, &srview, NULL));
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\235-normal.jpg", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tNormalX")->AsShaderResource()->SetResource(srview);
     g_pEffect->GetVariableByName("g_tNormalZ")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
-    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-normal.jpg", NULL, NULL, &srview, NULL));
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\1792-normal.jpg", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tNormalY")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
-    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\983-bump.jpg", NULL, NULL, &srview, NULL));
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\1792-bump.jpg", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tBump")->AsShaderResource()->SetResource(srview);
+    SAFE_RELEASE(srview);
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\detail_color.png", NULL, NULL, &srview, NULL));
+    g_pEffect->GetVariableByName("g_tDetail")->AsShaderResource()->SetResource(srview);
+    SAFE_RELEASE(srview);
+    V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"Textures\\detail_noise.png", NULL, NULL, &srview, NULL));
+    g_pEffect->GetVariableByName("g_tDetailNormals")->AsShaderResource()->SetResource(srview);
     SAFE_RELEASE(srview);
     V_RETURN(D3DX10CreateShaderResourceViewFromFile(pd3dDevice, L"NoiseVolume.dds", NULL, NULL, &srview, NULL));
     g_pEffect->GetVariableByName("g_tNoise3D")->AsShaderResource()->SetResource(srview);
@@ -258,6 +264,9 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
   g_Frustum.Update();
   if (!Config::Get<bool>("LockCamera")) {
     g_vCamPos = *g_Camera.GetEyePt();
+    octree->Relocate((INT)std::floor(g_vCamPos.x + g_iOctreeBaseOffset + 0.5f),
+                     (INT)std::floor(g_vCamPos.y + g_iOctreeBaseOffset + 0.5f),
+                     (INT)std::floor(g_vCamPos.z + g_iOctreeBaseOffset + 0.5f));
     octree->Cull(g_Frustum);
   }
   Block::OnFrameMove(fElapsedTime, g_vCamPos);
@@ -291,9 +300,6 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
     return;
   }
 
-  octree->Relocate((INT)std::floor(g_vCamPos.x + g_iOctreeBaseOffset + 0.5f),
-                   (INT)std::floor(g_vCamPos.y + g_iOctreeBaseOffset + 0.5f),
-                   (INT)std::floor(g_vCamPos.z + g_iOctreeBaseOffset + 0.5f));
   octree->ActivateBlocks(pd3dDevice);
 
   D3DXVECTOR3 eye = *g_Camera.GetEyePt();

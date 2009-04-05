@@ -300,6 +300,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\postprocessing.fx"
+				>
+			</File>
+			<File
 				RelativePath=".\Tables.fxh"
 				>
 			</File>

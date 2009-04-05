@@ -1,6 +1,7 @@
 //--------------------------------------------------------------------------------------
 // File: Effect.fx
 //--------------------------------------------------------------------------------------
+
 cbuffer cb0 {
   float4x4 g_mWorldViewProj;
   float3   g_vCamPos;
@@ -188,12 +189,19 @@ BlendState bsSrcAlphaBlendingAdd
   RenderTargetWriteMask[0] = 0x0F;
 };
 
+DepthStencilState dssEnableDepth
+{
+  DepthEnable = TRUE;
+  DepthWriteMask = ALL;
+  DepthFunc = LESS;
+};
+
 technique10 RenderBlock {
   pass P0 {
     SetVertexShader(CompileShader(vs_4_0, Block_VS()));
     SetGeometryShader(NULL);
     SetPixelShader(CompileShader(ps_4_0, Block_PS()));
-    SetDepthStencilState(NULL, 0);
+    SetDepthStencilState(dssEnableDepth, 0);
     SetBlendState(bsSrcAlphaBlendingAdd, float4(0, 0, 0, 0), 0xFFFFFFFF);
     SetRasterizerState(NULL);
   }
@@ -231,3 +239,5 @@ technique10 LoadingScreen {
     SetRasterizerState(NULL);
   }
 }
+
+#include "postprocessing.fx"

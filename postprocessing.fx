@@ -1,22 +1,16 @@
-cbuffer pp_cb0 {
+cbuffer pp_cb0 
+{
   float4x4 g_mWorldViewProj;
   float4x4 g_mWorldViewProjectionLastFrame; 
   float4x4 g_mViewInv;
 }
 
-
 Texture2D g_tDepth;
+Texture2D p_t1;
+Texture2D p_t2;
+Texture2D p_t3;
 
-Texture2D g_tHDRTarget0;
-Texture2D g_tToneMap;
-Texture2D g_tHDRBrightPass;
-Texture2D g_tHDRBloom;
-Texture2D g_tHDRBloom2;
-
-Texture2D g_tDOFTex1;
-Texture2D g_tDOFTex2;
-
-const float g_avSampleOffsets[15] = {
+static const float g_avSampleOffsets[15] = {
   0.0000,
   0.0125,
   0.0250,
@@ -33,7 +27,7 @@ const float g_avSampleOffsets[15] = {
   -0.0750,
   -0.0875};
 
- const float g_avSampleWeights[15] = {
+static const float g_avSampleWeights[15] = {
   0.1329807,
   0.1572430,
   0.1331033,
@@ -79,6 +73,13 @@ SamplerState PointSampler
     AddressV = Clamp;
 };
 
+SamplerState PointSamplerMirror
+{
+    Filter = MIN_MAG_MIP_POINT;
+    AddressU = Mirror;
+    AddressV = Mirror;
+};
+
 SamplerState LinearSampler
 {
     Filter = MIN_MAG_MIP_LINEAR;
@@ -110,7 +111,7 @@ float4 HDR_Luminosity_PS( QuadVS_Output Input ) : SV_TARGET
         [unroll] for( int x = -1; x < 1; x++ )
         {
       
-            vColor = g_tHDRTarget0.Sample( PointSampler, Input.Tex, int2(x,y) );
+            vColor = p_t1.Sample( PointSampler, Input.Tex, int2(x,y) );
                 
             fAvg += dot( vColor.rgb, LUMINANCE_VECTOR );
         }
@@ -118,7 +119,6 @@ float4 HDR_Luminosity_PS( QuadVS_Output Input ) : SV_TARGET
     
     fAvg /= 4;
    // fAvg += 0.35f; // bloomean everywhere!1
-   
 
     return float4(fAvg, fAvg, fAvg, 1.0f);
 }
@@ -132,7 +132,7 @@ float4 HDR_3x3_Downsampling_PS( QuadVS_Output Input ) : SV_TARGET
     {
         [unroll] for( int x = -1; x <= 1; x++ )
         {
-            vColor = g_tToneMap.Sample( PointSampler, Input.Tex, int2(x,y) );
+            vColor = p_t2.Sample( PointSampler, Input.Tex, int2(x,y) );
             fAvg += vColor.r; 
         }
     }
@@ -145,14 +145,14 @@ float4 HDR_3x3_Downsampling_PS( QuadVS_Output Input ) : SV_TARGET
 float4 HDR_BrightPass_PS( QuadVS_Output Input ) : SV_TARGET
 {   
     float3 vColor = 0.0f;
-    float4 vLum = g_tToneMap.Sample( PointSampler, float2(0, 0) );
+    float4 vLum = p_t2.Sample( PointSampler, float2(0, 0) );
     float  fLum = vLum.r;
        
     [unroll] for( int y = -1; y <= 1; y++ ) 
     {
         [unroll] for( int x = -1; x <= 1; x++ )
         {
-            float4 vSample = g_tHDRTarget0.Sample( PointSampler, Input.Tex, int2(x,y) );
+            float4 vSample = p_t1.Sample( PointSampler, Input.Tex, int2(x,y) );
 
             vColor += vSample.rgb; //farben aufsummieren
         }
@@ -182,7 +182,7 @@ float4 HDR_BloomH_PS( QuadVS_Output Input ) : SV_TARGET
         vSamplePosition = Input.Tex;
         vSamplePosition.x += g_avSampleOffsets[iSample];
         
-        vColor = g_tHDRBrightPass.Sample( PointSampler, vSamplePosition);
+        vColor = p_t1.Sample( PointSampler, vSamplePosition);
         
         vSample += g_avSampleWeights[iSample]*vColor;
     }
@@ -202,7 +202,7 @@ float4 HDR_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
         vSamplePosition = Input.Tex;
         vSamplePosition.y += g_avSampleOffsets[iSample];
         
-        vColor = g_tHDRBloom.Sample( PointSampler, vSamplePosition);
+        vColor = p_t1.Sample( PointSampler, vSamplePosition);
         
         vSample += g_avSampleWeights[iSample]*vColor;
     }
@@ -212,10 +212,11 @@ float4 HDR_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
 
 float4 HDR_FinalPass_PS( QuadVS_Output Input ) : SV_TARGET
 {   
-    float4 vColor = g_tHDRTarget0.Sample( PointSampler, Input.Tex );
-    float4 vLum = g_tToneMap.Sample( PointSampler, float2(0,0) );
-    float3 vBloom = g_tHDRBloom2.Sample( LinearSampler, Input.Tex );
   
+    float4 vColor = p_t1.Sample( PointSampler, Input.Tex );
+    float4 vLum = p_t2.Sample( PointSampler, float2(0,0) );
+    float3 vBloom = p_t3.Sample( LinearSampler, Input.Tex );
+
     // Tone mapping
     vColor.rgb *= MIDDLE_GRAY / (vLum.r + 0.001f);
     vColor.rgb *= (1.0f + vColor/LUM_WHITE);
@@ -231,8 +232,7 @@ float4 HDR_FinalPass_PS( QuadVS_Output Input ) : SV_TARGET
 
 float4 HDR_FinalPass_PS_debug( QuadVS_Output Input ) : SV_TARGET
 {
-  return g_tHDRTarget0.Sample( PointSampler, Input.Tex );
-  //return g_tHDRBloom.Sample( PointSampler, Input.Tex );
+  return p_t1.Sample( PointSampler, Input.Tex );
 }
 
 // DOF
@@ -247,7 +247,7 @@ float4 DOF_BloomH_PS( QuadVS_Output Input ) : SV_TARGET
         vSamplePosition = Input.Tex;
         vSamplePosition.x += g_avSampleOffsets[iSample]/4;
         
-        vColor = g_tHDRTarget0.Sample( LinearSampler, vSamplePosition);
+        vColor = p_t1.Sample( LinearSampler, vSamplePosition);
         
         vSample += g_avSampleWeights[iSample]*vColor;
     }
@@ -266,7 +266,7 @@ float4 DOF_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
         vSamplePosition = Input.Tex;
         vSamplePosition.y += g_avSampleOffsets[iSample]/4;
         
-        vColor = g_tDOFTex1.Sample( LinearSampler, vSamplePosition);
+        vColor = p_t1.Sample( LinearSampler, vSamplePosition);
         
         vSample += g_avSampleWeights[iSample]*vColor;
     }
@@ -276,19 +276,17 @@ float4 DOF_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
 
 float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
 {
-    float3 ColorOrg  = g_tHDRTarget0.Sample( PointSampler, Input.Tex).rgb;
-    float3 ColorBlur = g_tDOFTex2.Sample( LinearSampler, Input.Tex).rgb;
+    float3 ColorOrg  = p_t1.Sample( PointSampler, Input.Tex).rgb;
+    float3 ColorBlur = p_t2.Sample( LinearSampler, Input.Tex).rgb;
 
     float Blur = g_tDepth.Load(int3(Input.Pos.xy,0));
     Blur = saturate(saturate(abs(Blur) - 0.99) * 100);
  
-    return float4(lerp( ColorOrg, ColorBlur, Blur ),1.f);
+    return float4(lerp( ColorOrg, ColorBlur, Blur ), 1.0f);
 }
 
 float4 Motion_Blur_PS( QuadVS_Output Input ) : SV_TARGET
 {
-  
-
     // Get the depth buffer value at this pixel.  
     float zOverW = g_tDepth.Load(int3(Input.Pos.xy,0));
     
@@ -314,10 +312,10 @@ float4 Motion_Blur_PS( QuadVS_Output Input ) : SV_TARGET
 
     // Use this frame's position and last frame's to compute the pixel  
     // velocity.  
-    float2 velocity = (currentPos - previousPos)/9.f;  
+    float2 velocity = (currentPos - previousPos)/2.f;  
 
     // Get the initial color at this pixel.  
-    float4 color = g_tHDRTarget0.Sample( PointSampler, Input.Tex);
+    float4 color = p_t1.Sample( PointSampler, Input.Tex);
     float2 texCoord = velocity + Input.Tex; 
 
     int g_numSamples = 3;
@@ -325,7 +323,7 @@ float4 Motion_Blur_PS( QuadVS_Output Input ) : SV_TARGET
     [unroll] for(int i = 1; i < g_numSamples; ++i, texCoord += velocity)  
     {  
       // Sample the color buffer along the velocity vector.  
-      float4 currentColor = g_tHDRTarget0.Sample( PointSampler, texCoord); 
+      float4 currentColor = p_t1.Sample(PointSamplerMirror, texCoord); 
 
       // Add the current color to our color sum.  
       color += currentColor;  

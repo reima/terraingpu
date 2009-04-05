@@ -58,6 +58,11 @@ bool g_bHDRenabled = true;
 bool g_bDOFenabled = true;
 bool g_bMotionBlurenabled = true;
 
+ID3D10EffectShaderResourceVariable* g_tDepth;
+ID3D10EffectShaderResourceVariable* g_pt1;
+ID3D10EffectShaderResourceVariable* g_pt2;
+ID3D10EffectShaderResourceVariable* g_pt3;
+
 ID3D10EffectMatrixVariable* g_pmWorldViewProjInv = NULL;
 ID3D10EffectMatrixVariable* g_pmWorldViewProjLastFrame = NULL;
 D3DXMATRIX mWorldViewProjectionLastFrame;
@@ -65,7 +70,7 @@ D3DXMATRIX mWorldViewProjectionLastFrame;
 ID3D10DepthStencilView* g_pDSV = NULL;
 ID3D10Texture2D* g_pDepthStencil = NULL;        
 ID3D10ShaderResourceView* g_pDepthStencilRV = NULL;
-ID3D10EffectShaderResourceVariable* g_tDepth;
+
 
 ID3D10InputLayout* g_pQuadLayout = NULL;
 ID3D10Buffer* g_pScreenQuadVB = NULL;
@@ -73,43 +78,43 @@ ID3D10Buffer* g_pScreenQuadVB = NULL;
 ID3D10Texture2D* g_pHDRTarget0 = NULL;        
 ID3D10ShaderResourceView* g_pHDRTarget0RV = NULL;
 ID3D10RenderTargetView* g_pHDRTarget0RTV = NULL;
-ID3D10EffectShaderResourceVariable* g_tHDRTarget0;
+
 
 ID3D10Texture2D* g_pHDRTarget1 = NULL;        
 ID3D10ShaderResourceView* g_pHDRTarget1RV = NULL;
 ID3D10RenderTargetView* g_pHDRTarget1RTV = NULL;
-ID3D10EffectShaderResourceVariable* g_tHDRTarget1;
+
 
 ID3D10Texture2D* g_pToneMap[NUM_TONEMAP_TEXTURES]; 
 ID3D10ShaderResourceView* g_pToneMapRV[NUM_TONEMAP_TEXTURES];
 ID3D10RenderTargetView* g_pToneMapRTV[NUM_TONEMAP_TEXTURES];
-ID3D10EffectShaderResourceVariable* g_tToneMap;
+
 
 
 ID3D10Texture2D* g_pHDRBrightPass = NULL;     
 ID3D10ShaderResourceView* g_pHDRBrightPassRV = NULL;
 ID3D10RenderTargetView* g_pHDRBrightPassRTV = NULL;
-ID3D10EffectShaderResourceVariable* g_tHDRBrightPass;
+
 
 ID3D10Texture2D* g_pHDRBloom = NULL;     
 ID3D10ShaderResourceView* g_pHDRBloomRV = NULL;
 ID3D10RenderTargetView* g_pHDRBloomRTV = NULL;
-ID3D10EffectShaderResourceVariable* g_tHDRBloom;
+
 
 ID3D10Texture2D* g_pHDRBloom2 = NULL;     
 ID3D10ShaderResourceView* g_pHDRBloom2RV = NULL;
 ID3D10RenderTargetView* g_pHDRBloom2RTV = NULL;
-ID3D10EffectShaderResourceVariable* g_tHDRBloom2;
+
 
 ID3D10Texture2D* g_pDOFTex1 = NULL;     
 ID3D10ShaderResourceView* g_pDOFTex1RV = NULL;
 ID3D10RenderTargetView* g_pDOFTex1RTV = NULL;
-ID3D10EffectShaderResourceVariable* g_tDOFTex1;
+
 
 ID3D10Texture2D* g_pDOFTex2 = NULL;     
 ID3D10ShaderResourceView* g_pDOFTex2RV = NULL;
 ID3D10RenderTargetView* g_pDOFTex2RTV = NULL;
-ID3D10EffectShaderResourceVariable* g_tDOFTex2;
+
 
 void DrawFullscreenQuad( ID3D10Device* pd3dDevice, ID3D10EffectTechnique* pTech, UINT Width, UINT Height );
 
@@ -356,6 +361,10 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
                                            pass_desc.IAInputSignatureSize, &g_pQuadLayout ) );
 
 
+  g_pt1 = g_pEffect->GetVariableByName("p_t1")->AsShaderResource();
+  g_pt2 = g_pEffect->GetVariableByName("p_t2")->AsShaderResource();
+  g_pt3 = g_pEffect->GetVariableByName("p_t3")->AsShaderResource();
+
   return S_OK;
 }
 
@@ -440,15 +449,10 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRTarget0, &DescRV, &g_pHDRTarget0RV ) );
 
 
-  g_tHDRTarget0 = g_pEffect->GetVariableByName( "g_tHDRTarget0" )->AsShaderResource();
-  g_tHDRTarget0->SetResource(g_pHDRTarget0RV);
-
+ 
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRTarget1 ) );
   V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRTarget1, &DescRT, &g_pHDRTarget1RTV ) );
   V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRTarget1, &DescRV, &g_pHDRTarget1RV ) );
-  g_tHDRTarget1 = g_pEffect->GetVariableByName( "g_tHDRTarget1" )->AsShaderResource();
-  g_tHDRTarget1->SetResource(g_pHDRTarget1RV);
-
 
   Desc.Width /= 2;
   Desc.Height /= 2;
@@ -457,18 +461,12 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   V_RETURN( pd3dDevice->CreateRenderTargetView(  g_pDOFTex1, &DescRT, & g_pDOFTex1RTV ) );
   V_RETURN( pd3dDevice->CreateShaderResourceView(  g_pDOFTex1, &DescRV, & g_pDOFTex1RV ) );
 
-  g_tDOFTex1 = g_pEffect->GetVariableByName( "g_tDOFTex1" )->AsShaderResource();
-  g_tDOFTex1->SetResource(g_pDOFTex1RV);
-
+ 
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, & g_pDOFTex2 ) );
   V_RETURN( pd3dDevice->CreateRenderTargetView(  g_pDOFTex2, &DescRT, & g_pDOFTex2RTV ) );
   V_RETURN( pd3dDevice->CreateShaderResourceView(  g_pDOFTex2, &DescRV, & g_pDOFTex2RV ) );
 
-  g_tDOFTex2 = g_pEffect->GetVariableByName( "g_tDOFTex2" )->AsShaderResource();
-  g_tDOFTex2->SetResource(g_pDOFTex2RV);
  
-
-
   // Create the bright pass texture
   Desc.Width /= 4;
   Desc.Height /= 4;
@@ -488,25 +486,15 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
   DescRV.Texture2D.MostDetailedMip = 0;
   V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBrightPass, &DescRV, &g_pHDRBrightPassRV ) );
 
-  g_tHDRBrightPass = g_pEffect->GetVariableByName( "g_tHDRBrightPass" )->AsShaderResource();
-  g_tHDRBrightPass->SetResource(g_pHDRBrightPassRV);
-
   
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBloom ) );
   V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBloom, &DescRT, &g_pHDRBloomRTV ) );
   V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBloom, &DescRV, &g_pHDRBloomRV ) );
 
-  g_tHDRBloom = g_pEffect->GetVariableByName( "g_tHDRBloom" )->AsShaderResource();
-  g_tHDRBloom->SetResource(g_pHDRBloomRV);
-
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBloom2 ) );
   V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBloom2, &DescRT, &g_pHDRBloom2RTV ) );
   V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBloom2, &DescRV, &g_pHDRBloom2RV ) );
 
-  g_tHDRBloom2 = g_pEffect->GetVariableByName( "g_tHDRBloom2" )->AsShaderResource();
-  g_tHDRBloom2->SetResource(g_pHDRBloom2RV);
-
-  
   int nSampleLen = 1;
   for( int i = 0; i < NUM_TONEMAP_TEXTURES; i++ )
   {
@@ -540,8 +528,6 @@ HRESULT CALLBACK OnD3D10ResizedSwapChain( ID3D10Device* pd3dDevice, IDXGISwapCha
 
     nSampleLen *= 3;
   }
-
-  g_tToneMap = g_pEffect->GetVariableByName( "g_tToneMap" )->AsShaderResource();
 
   return S_OK;
 }
@@ -578,12 +564,16 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
 //--------------------------------------------------------------------------------------
 void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float fElapsedTime, void* pUserContext )
 {
+  if (g_tDepth != NULL) g_tDepth->SetResource(NULL);
+  g_pt1->SetResource(NULL);
+  g_pt2->SetResource(NULL);
+  g_pt3->SetResource(NULL);
+  
+  ID3D10ShaderResourceView *const pSRV[1] = {NULL};
+  pd3dDevice->PSSetShaderResources(0, 1, pSRV);
 
   ID3D10RenderTargetView *rtv = DXUTGetD3D10RenderTargetView();
-  //ID3D10DepthStencilView *dsv = DXUTGetD3D10DepthStencilView();
-  pd3dDevice->OMSetRenderTargets(1, &rtv, NULL);
-
-  g_tHDRTarget0->SetResource(g_pHDRTarget0RV);
+  pd3dDevice->OMSetRenderTargets(0, NULL, NULL);
 
   D3D10_VIEWPORT viewport = {
     0, 0,
@@ -600,9 +590,10 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   pd3dDevice->ClearRenderTargetView( g_pDOFTex2RTV, ClearColor );
   pd3dDevice->ClearRenderTargetView( g_pHDRTarget0RTV, ClearColor );
   pd3dDevice->ClearRenderTargetView( g_pHDRTarget1RTV, ClearColor );
- // pd3dDevice->ClearDepthStencilView( DXUTGetD3D10DepthStencilView(), D3D10_CLEAR_DEPTH, 1.0, 0 );
   pd3dDevice->ClearDepthStencilView( g_pDSV, D3D10_CLEAR_DEPTH, 1.0, 0 );
  
+  pd3dDevice->OMSetRenderTargets(1, &rtv, NULL);
+
   if (g_bLoading) {
     g_LoadingScreen.Draw(pd3dDevice);
     return;
@@ -642,12 +633,16 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   if (g_bMotionBlurenabled) { 
     D3D10_TEXTURE2D_DESC descScreen;
     g_pHDRTarget1->GetDesc( &descScreen );
-   
+
     aRTViews[0] =  g_pHDRTarget1RTV;
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
+    g_pt1->SetResource(g_pHDRTarget0RV);
+
 
     DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("Motion_Blur"), descScreen.Width, descScreen.Height );
      
+    g_pt1->SetResource(NULL);
+    
     ID3D10Texture2D* textemp = g_pHDRTarget0;     
     ID3D10ShaderResourceView* textempRV = g_pHDRTarget0RV;
     ID3D10RenderTargetView* textempRTV = g_pHDRTarget0RTV;
@@ -659,9 +654,6 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
     g_pHDRTarget1 = textemp;     
     g_pHDRTarget1RV = textempRV;
     g_pHDRTarget1RTV = textempRTV;
-
-    g_tHDRTarget1->SetResource(g_pHDRTarget1RV);
-    g_tHDRTarget0->SetResource(g_pHDRTarget0RV);
 
     pd3dDevice->ClearRenderTargetView( g_pHDRTarget1RTV, ClearColor );
   }
@@ -675,23 +667,34 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
    
     aRTViews[0] =  g_pDOFTex1RTV;
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
+    g_pt1->SetResource(g_pHDRTarget0RV);
 
     DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("DOF_BloomH"), descScreen.Width, descScreen.Height );
-   
+
+    g_pt1->SetResource(NULL);
+
     // bloomV
     aRTViews[0] =  g_pDOFTex2RTV;
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
+    g_pt1->SetResource(g_pDOFTex1RV);
 
     DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("DOF_BloomV"), descScreen.Width, descScreen.Height );
     
+    g_pt1->SetResource(NULL);
     // DoF final
-
     g_pHDRTarget1->GetDesc( &descScreen );
     pd3dDevice->ClearRenderTargetView( g_pDOFTex1RTV, ClearColor );
     aRTViews[0] =  g_pHDRTarget1RTV;
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
 
+    g_pt1->SetResource(g_pHDRTarget0RV);
+    g_pt2->SetResource(g_pDOFTex2RV);
+
     DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("DOF_Final"), descScreen.Width, descScreen.Height );
+
+    
+    g_pt1->SetResource(NULL);
+    g_pt2->SetResource(NULL);
 
     ID3D10Texture2D* textemp = g_pHDRTarget0;     
     ID3D10ShaderResourceView* textempRV = g_pHDRTarget0RV;
@@ -705,9 +708,6 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
     g_pHDRTarget1RV = textempRV;
     g_pHDRTarget1RTV = textempRTV;
 
-    g_tHDRTarget1->SetResource(g_pHDRTarget1RV);
-    g_tHDRTarget0->SetResource(g_pHDRTarget0RV);
-
     pd3dDevice->ClearRenderTargetView( g_pHDRTarget1RTV, ClearColor );
   }
 
@@ -715,6 +715,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
     ID3D10ShaderResourceView* pTexSrc = NULL;
     ID3D10ShaderResourceView* pTexDest = NULL;
     ID3D10RenderTargetView* pSurfDest = NULL;
+
     D3D10_TEXTURE2D_DESC descSrc;
     g_pHDRTarget0->GetDesc( &descSrc );
     D3D10_TEXTURE2D_DESC descDest;
@@ -722,10 +723,12 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
 
     aRTViews[0] =  g_pToneMapRTV[NUM_TONEMAP_TEXTURES-1];
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
-    
+
+    g_pt1->SetResource(g_pHDRTarget0RV);
+    g_pt2->SetResource(NULL);
+
     //luminosity erzeugen
     DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("HDR_Luminosity"), descDest.Width, descDest.Height );
-
 
     //downsamplen 
     for( int i = NUM_TONEMAP_TEXTURES - 1; i > 0; i-- )
@@ -740,43 +743,62 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
       aRTViews[0] = pSurfDest;
       pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
 
-      g_tToneMap->SetResource( pTexSrc );
+       g_pt2->SetResource( pTexSrc );
 
       DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("HDR_3x3_Downsampling"), desc.Width / 3, desc.Height / 3 );
 
-      g_tToneMap->SetResource( NULL );
+       g_pt2->SetResource( NULL );
     }
 
     // bright pass filter
     aRTViews[0] = g_pHDRBrightPassRTV;
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
    
-    g_tToneMap->SetResource( g_pToneMapRV[0] );
-
+    g_pt1->SetResource(g_pHDRTarget0RV);   
+    g_pt2->SetResource(g_pToneMapRV[0]);
+ 
     DrawFullscreenQuad( pd3dDevice,  g_pEffect->GetTechniqueByName("HDR_BrightPass"), g_uiWidth / 8, g_uiHeight / 8);
 
     //bloom
+
+    g_pt1->SetResource(g_pHDRBrightPassRV);  
+    g_pt2->SetResource(NULL);
+  
     aRTViews[0] = g_pHDRBloomRTV;
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
     DrawFullscreenQuad( pd3dDevice,  g_pEffect->GetTechniqueByName("HDR_BloomH"), g_uiWidth / 8, g_uiHeight / 8);
+
+    g_pt1->SetResource(g_pHDRBloomRV);  
+    g_pt2->SetResource(NULL);
 
     aRTViews[0] = g_pHDRBloom2RTV;
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
     DrawFullscreenQuad( pd3dDevice,  g_pEffect->GetTechniqueByName("HDR_BloomV"), g_uiWidth / 8, g_uiHeight / 8);
     
+    g_pt1->SetResource(g_pHDRTarget0RV);
+    g_pt2->SetResource(g_pToneMapRV[0]);
+    g_pt3->SetResource(g_pHDRBloom2RV);
 
     //auf screen rendern 
     aRTViews[ 0 ] = rtv;
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );   
    
     DrawFullscreenQuad( pd3dDevice,  g_pEffect->GetTechniqueByName("HDR_FinalPass"), g_uiWidth, g_uiHeight);
+
+    g_pt1->SetResource(NULL);
+    g_pt2->SetResource(NULL);
+    g_pt3->SetResource(NULL);
   }
   else //hdr = off
   {
     aRTViews[ 0 ] = rtv;
     pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
 
+    g_pt1->SetResource(g_pHDRTarget0RV);
+
     DrawFullscreenQuad( pd3dDevice,  g_pEffect->GetTechniqueByName("HDR_FinalPass_disabled"), g_uiWidth, g_uiHeight);
+
+    g_pt1->SetResource(NULL);
   }
 
   TwDraw();
@@ -797,8 +819,6 @@ void CALLBACK OnD3D10ReleasingSwapChain( void* pUserContext )
   SAFE_RELEASE(g_pHDRTarget1RV);
   SAFE_RELEASE(g_pHDRTarget1RTV);
 
-  g_tHDRTarget0 = NULL;
-
   for( int i = 0; i < NUM_TONEMAP_TEXTURES; i++ )
   {
     SAFE_RELEASE( g_pToneMap[i] );
@@ -806,34 +826,25 @@ void CALLBACK OnD3D10ReleasingSwapChain( void* pUserContext )
     SAFE_RELEASE( g_pToneMapRTV[i] );
   }
 
-  g_tToneMap = NULL;
-
-
   SAFE_RELEASE(g_pHDRBrightPass);   
   SAFE_RELEASE(g_pHDRBrightPassRV);
   SAFE_RELEASE(g_pHDRBrightPassRTV);
-  g_tHDRBrightPass = NULL;
 
   SAFE_RELEASE(g_pHDRBloom);    
   SAFE_RELEASE(g_pHDRBloomRV);
   SAFE_RELEASE(g_pHDRBloomRTV);
-  g_tHDRBloom = NULL;
-
 
   SAFE_RELEASE(g_pHDRBloom2);    
   SAFE_RELEASE(g_pHDRBloom2RV);
   SAFE_RELEASE(g_pHDRBloom2RTV);
-  g_tHDRBloom2 = NULL;
 
   SAFE_RELEASE(g_pDOFTex1);    
   SAFE_RELEASE(g_pDOFTex1RV);
   SAFE_RELEASE(g_pDOFTex1RTV);
-  g_tDOFTex1 = NULL;
 
   SAFE_RELEASE(g_pDOFTex2);    
   SAFE_RELEASE(g_pDOFTex2RV);
   SAFE_RELEASE(g_pDOFTex2RTV);
-  g_tDOFTex2 = NULL;
 
   SAFE_RELEASE(g_pDSV);    
   SAFE_RELEASE(g_pDepthStencil);

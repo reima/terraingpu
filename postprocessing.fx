@@ -4,6 +4,13 @@ cbuffer pp_cb0
   float4x4 g_mWorldViewProjectionLastFrame; 
   float4x4 g_mViewInv;
 }
+cbuffer pp_cb_settings
+{
+  float g_fDOFoffset;
+  int g_iDOFmult;
+
+
+}
 
 Texture2D g_tDepth;
 Texture2D p_t1;
@@ -280,7 +287,8 @@ float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
     float3 ColorBlur = p_t2.Sample( LinearSampler, Input.Tex).rgb;
 
     float Blur = g_tDepth.Load(int3(Input.Pos.xy,0));
-    Blur = saturate(saturate(abs(Blur) - 0.99) * 100);
+    Blur = saturate(saturate(Blur - g_fDOFoffset) * g_iDOFmult);
+    //Blur = saturate(saturate(abs(Blur) - 0.99) * 100);
  
     return float4(lerp( ColorOrg, ColorBlur, Blur ), 1.0f);
 }

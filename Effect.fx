@@ -17,6 +17,7 @@ cbuffer cb3 {
   bool g_bNormalMapping = true;
   bool g_bDetailTex = true;
   bool g_bFog = true;
+  float4 g_vFogColor = float4(0.976, 0.996, 0.667, 0.0);
   float3 g_vLightDir = float3(0, 1, 1);
 }
 
@@ -168,8 +169,8 @@ float4 Block_PS(VS_BLOCK_OUTPUT Input) : SV_Target {
   // Fog
   if (g_bFog) {
     float depth = length(g_vCamPos - Input.WorldPos);
-    const float fFogStart = 5.0, fFogEnd = 7.5;
-    color = lerp(color, float3(0.176, 0.196, 0.667), saturate((depth-fFogStart) / (fFogEnd - fFogStart)));
+    const float fFogStart = 1.0, fFogEnd = 7.5;
+    color = lerp(g_vFogColor.rgb, color, 1.f/exp(pow(depth * 0.2, 2)));
   }
 
   return float4(color, saturate(Input.Age*3));

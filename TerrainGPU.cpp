@@ -25,6 +25,7 @@ ID3D10EffectScalarVariable *g_pDetailTexEV;
 ID3D10EffectVectorVariable *g_pLightDirEV;
 ID3D10EffectScalarVariable *g_pTimeEV;
 ID3D10EffectScalarVariable *g_pFogEV;
+ID3D10EffectVectorVariable *g_pFogColorEV;
 
 bool g_bLoading = false;
 int g_iLoadingMaxSize = 0;
@@ -54,9 +55,9 @@ struct SCREEN_VERTEX
 
 #define NUM_TONEMAP_TEXTURES 5
 
-bool g_bHDRenabled = true;
-bool g_bDOFenabled = true;
-bool g_bMotionBlurenabled = true;
+bool g_bHDRenabled = false;
+bool g_bDOFenabled = false;
+bool g_bMotionBlurenabled = false;
 
 ID3D10EffectShaderResourceVariable* g_tDepth;
 ID3D10EffectShaderResourceVariable* g_pt1;
@@ -167,8 +168,8 @@ void TW_CALL GetStatsCallback(void *value, void *clientData) {
       *(UINT *)value = Block::vertex_buffers_total_size() + Block::index_buffers_total_size();
       return;
     case STATS_COUNTS:
-      //*(UINT *)value = Block::draw_calls();
-      *(UINT *)value = Block::primitives_drawn();
+      *(UINT *)value = Block::draw_calls();
+      //*(UINT *)value = Block::primitives_drawn();
       return;
   }
   std::vector<char> str;
@@ -199,6 +200,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   Config::Set<bool>("LockCamera", false);
   Config::Set<UINT>("MaxBlocksPerFrame", 16);
   Config::Set<UINT>("OctreeDepth", 4);
+  Config::Set<D3DXCOLOR>("FogColor", D3DXCOLOR(0.976f, 0.996f, 0.667f, 0.0f));
 
   TwInit(TW_DIRECT3D10, pd3dDevice);
   TwDefine("GLOBAL fontsize=1");
@@ -216,6 +218,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   TwAddVarRW(bar, "Fog", TW_TYPE_BOOLCPP,
              (void *)&Config::Get<bool>("Fog"),
              "Help='Toggles fog effect.' key=f");
+  TwAddVarRW(bar, "Fog Color", TW_TYPE_COLOR3F,
+             (void *)&Config::Get<D3DXCOLOR>("FogColor"),
+             "Help='Fog color.'");
   TwAddVarRW(bar, "Normal mapping", TW_TYPE_BOOLCPP,
              (void *)&Config::Get<bool>("NormalMapping"),
              "Help='Toggles normal mapping on the terrain.' key=n");
@@ -272,6 +277,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_pNormalMappingEV = g_pEffect->GetVariableByName("g_bNormalMapping")->AsScalar();
   g_pDetailTexEV = g_pEffect->GetVariableByName("g_bDetailTex")->AsScalar();
   g_pFogEV = g_pEffect->GetVariableByName("g_bFog")->AsScalar();
+  g_pFogColorEV = g_pEffect->GetVariableByName("g_vFogColor")->AsVector();
   g_pLightDirEV = g_pEffect->GetVariableByName("g_vLightDir")->AsVector();
   g_pTimeEV = g_pEffect->GetVariableByName("g_fTime")->AsScalar();
 
@@ -311,7 +317,9 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_Camera.SetScalers(0.01f, 1.0f);
   //g_Camera.SetDrag(true, 0.5f);
 
-  octree = new Octree(g_iOctreeBaseOffset, g_iOctreeBaseOffset, g_iOctreeBaseOffset,
+  octree = new Octree((INT)std::floor(eye.x + g_iOctreeBaseOffset),
+                      (INT)std::floor(eye.y + g_iOctreeBaseOffset),
+                      (INT)std::floor(eye.z + g_iOctreeBaseOffset),
                       Config::Get<UINT>("OctreeDepth"));
   octree->ActivateBlocks(pd3dDevice);
 
@@ -549,9 +557,10 @@ void CALLBACK OnFrameMove( double fTime, float fElapsedTime, void* pUserContext 
   g_Frustum.Update();
   if (!Config::Get<bool>("LockCamera")) {
     g_vCamPos = *g_Camera.GetEyePt();
-    octree->Relocate((INT)std::floor(g_vCamPos.x + g_iOctreeBaseOffset + 0.5f),
-                     (INT)std::floor(g_vCamPos.y + g_iOctreeBaseOffset + 0.5f),
-                     (INT)std::floor(g_vCamPos.z + g_iOctreeBaseOffset + 0.5f));
+    octree->Relocate((INT)std::floor(g_vCamPos.x + g_iOctreeBaseOffset),
+                     (INT)std::floor(g_vCamPos.y + g_iOctreeBaseOffset),
+                     (INT)std::floor(g_vCamPos.z + g_iOctreeBaseOffset));
+    octree->ActivateBlocks(DXUTGetD3D10Device());
     octree->Cull(g_Frustum);
   }
   Block::OnFrameMove(fElapsedTime, g_vCamPos);
@@ -584,7 +593,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
  
   // Clear render target and the depth stencil
   //float ClearColor[4] = { 0.176f, 0.196f, 0.667f, 0.0f };  
-  float ClearColor[4] = { 0.976f, 0.996f, 0.667f, 0.0f };
+  const float *ClearColor = Config::Get<D3DXCOLOR>("FogColor");
   pd3dDevice->ClearRenderTargetView( DXUTGetD3D10RenderTargetView(), ClearColor );
   pd3dDevice->ClearRenderTargetView( g_pDOFTex1RTV, ClearColor );
   pd3dDevice->ClearRenderTargetView( g_pDOFTex2RTV, ClearColor );
@@ -600,9 +609,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   }
 
   ID3D10RenderTargetView* aRTViews[ 1 ] = { g_pHDRTarget0RTV };
-  pd3dDevice->OMSetRenderTargets(1, aRTViews, g_pDSV);
-
-  octree->ActivateBlocks(pd3dDevice);
+  pd3dDevice->OMSetRenderTargets(1, aRTViews, g_pDSV);  
 
   D3DXVECTOR3 eye = *g_Camera.GetEyePt();
   D3DXMATRIX world_view_proj = *g_Camera.GetViewMatrix() *
@@ -616,13 +623,11 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   D3DXMatrixInverse(&view_inv, NULL, &world_view_proj);
   g_pmWorldViewProjInv->SetMatrix((float*)&view_inv);
 
-
-
-
   g_pCamPosEV->SetFloatVector(eye);
   g_pNormalMappingEV->SetBool(Config::Get<bool>("NormalMapping"));
   g_pDetailTexEV->SetBool(Config::Get<bool>("DetailTex"));
   g_pFogEV->SetBool(Config::Get<bool>("Fog"));
+  g_pFogColorEV->SetFloatVector(const_cast<float *>(ClearColor));
   g_pLightDirEV->SetFloatVector(g_vLightDir);
   g_pTimeEV->SetFloat((float)DXUTGetTime());
 

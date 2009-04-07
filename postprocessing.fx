@@ -9,6 +9,7 @@ cbuffer pp_cb_settings
 {
   float g_fDOFoffset;
   int g_iDOFmult;
+  int g_iDOFfadespeed;
 }
 
 Texture2D g_tDepth;
@@ -294,9 +295,11 @@ float4 DOF_DepthStep_PS( QuadVS_Output Input ) : SV_TARGET
   g_tDepth.GetDimensions(x,y);
 
   float target_depth = LinearizeDepth(g_tDepth.Load(int3(int2(x/2,y/2),0)));
+
+  target_depth = min(0.4f, target_depth);
   float curDepth = p_t1.Sample( PointSampler, float2(0,0));
   
-  float bla = lerp(curDepth, target_depth, 0.1);
+  float bla = lerp(curDepth, target_depth, g_iDOFfadespeed * g_fElapsedTime);
 
   return float4(bla,bla,bla,1);
 }
@@ -308,6 +311,7 @@ float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
     float3 ColorBlur = p_t2.Sample( LinearSampler, Input.Tex).rgb;
 
     float Blur = LinearizeDepth(g_tDepth.Load(int3(Input.Pos.xy,0)));
+    Blur = min(0.4f, Blur);
     float focal_depth = p_t3.Sample( PointSampler, float2(0,0) );
 
     Blur = saturate((abs(Blur-focal_depth)) * g_iDOFmult);

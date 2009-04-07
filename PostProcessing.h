@@ -44,6 +44,9 @@ private:
   ID3D10EffectScalarVariable *g_pDOF_offset;
   int   g_iDOF_mult;
   ID3D10EffectScalarVariable *g_pDOF_mult;
+  int   g_iDOFfadespeed;
+  ID3D10EffectScalarVariable *g_pDOFfadespeed;
+  
 
   ID3D10EffectShaderResourceVariable* g_tDepth;
   ID3D10EffectShaderResourceVariable* g_pt1;

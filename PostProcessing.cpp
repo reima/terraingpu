@@ -219,9 +219,10 @@ HRESULT PostProcessing::OnCreateDevice(ID3D10Effect *eff, ID3D10Device *dev, TwB
   //  USER INTERFACE
   TwAddVarRW(bar, "HDR", TW_TYPE_BOOLCPP, &g_bHDRenabled, "Help='Enable HDR Bloom'");  
   TwAddVarRW(bar, "DoF", TW_TYPE_BOOLCPP, &g_bDOFenabled, "Help='Enable Depth of Field'");  
-    TwAddVarRW(bar, "DoF offset", TW_TYPE_FLOAT, &g_fDOF_offset, "Help='Depth of Field' min=0.9 max=0.99999"); 
+    TwAddVarRW(bar, "DoF fadespeed", TW_TYPE_INT32, &g_iDOFfadespeed, "Help='Depth of Field fadespeed' min=1 max=100"); 
     TwAddVarRW(bar, "DoF multi", TW_TYPE_INT32, &g_iDOF_mult, "Help='Depth of Field' min=1 max=10000"); 
   TwAddVarRW(bar, "MotionBlur", TW_TYPE_BOOLCPP, &g_bMotionBlurenabled, "Help='Enable Motion Blur'");  
+
 
   // SHADER VARIABLES
   g_pDOF_offset = g_pEffect->GetVariableByName("g_fDOFoffset")->AsScalar();
@@ -229,6 +230,9 @@ HRESULT PostProcessing::OnCreateDevice(ID3D10Effect *eff, ID3D10Device *dev, TwB
 
   g_pDOF_mult = g_pEffect->GetVariableByName("g_iDOFmult")->AsScalar();
   g_iDOF_mult = 100;
+
+  g_pDOFfadespeed = g_pEffect->GetVariableByName("g_iDOFfadespeed")->AsScalar();
+  g_iDOFfadespeed = 7;
 
   // DATA STRUCTURES
 
@@ -308,6 +312,7 @@ HRESULT PostProcessing::UpdateShaderVariables()
 {
   g_pDOF_offset->SetFloat(g_fDOF_offset);
   g_pDOF_mult->SetInt(g_iDOF_mult);
+  g_pDOFfadespeed->SetInt(g_iDOFfadespeed);
   
   return S_OK; 
 }

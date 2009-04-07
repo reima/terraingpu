@@ -27,6 +27,7 @@ ID3D10EffectVectorVariable *g_pLightDirEV;
 ID3D10EffectScalarVariable *g_pTimeEV;
 ID3D10EffectScalarVariable *g_pFogEV;
 ID3D10EffectVectorVariable *g_pFogColorEV;
+ID3D10EffectScalarVariable *g_pElapsedTimeEV;
 
 bool g_bLoading = false;
 int g_iLoadingMaxSize = 0;
@@ -207,6 +208,7 @@ HRESULT CALLBACK OnD3D10CreateDevice( ID3D10Device* pd3dDevice, const DXGI_SURFA
   g_pFogColorEV = g_pEffect->GetVariableByName("g_vFogColor")->AsVector();
   g_pLightDirEV = g_pEffect->GetVariableByName("g_vLightDir")->AsVector();
   g_pTimeEV = g_pEffect->GetVariableByName("g_fTime")->AsScalar();
+  g_pElapsedTimeEV = g_pEffect->GetVariableByName("g_fElapsedTime")->AsScalar();
 
   {
     ID3D10ShaderResourceView *srview;
@@ -345,8 +347,10 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   octree->ActivateBlocks(pd3dDevice);
 
   D3DXVECTOR3 eye = *g_Camera.GetEyePt();
-  D3DXMATRIX world_view_proj = *g_Camera.GetViewMatrix() *
-                               *g_Camera.GetProjMatrix();
+  D3DXMATRIX mProj = *g_Camera.GetProjMatrix();
+  D3DXMATRIX mView = *g_Camera.GetViewMatrix();
+  D3DXMATRIX world_view_proj = mView * mProj;
+
   g_pWorldViewProjEV->SetMatrix((float*)&world_view_proj);
 
   g_pmWorldViewProjLastFrame->SetMatrix((float*)&mWorldViewProjectionLastFrame);
@@ -363,6 +367,7 @@ void CALLBACK OnD3D10FrameRender( ID3D10Device* pd3dDevice, double fTime, float 
   g_pFogColorEV->SetFloatVector(const_cast<float *>(ClearColor));
   g_pLightDirEV->SetFloatVector(g_vLightDir);
   g_pTimeEV->SetFloat((float)DXUTGetTime());
+  g_pElapsedTimeEV->SetFloat(fElapsedTime);
 
   g_PostProcessing.UpdateShaderVariables();
 

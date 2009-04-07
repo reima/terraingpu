@@ -6,6 +6,7 @@ cbuffer cb0 {
   float4x4 g_mWorldViewProj;
   float3   g_vCamPos;
   float    g_fTime;
+  float    g_fElapsedTime;
 }
 
 cbuffer cb2 {

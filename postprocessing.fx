@@ -125,7 +125,6 @@ float4 HDR_Luminosity_PS( QuadVS_Output Input ) : SV_TARGET
     }
     
     fAvg /= 4;
-   // fAvg += 0.35f; // bloomean everywhere!1
 
     return float4(fAvg, fAvg, fAvg, 1.0f);
 }
@@ -287,9 +286,13 @@ float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
     float3 ColorBlur = p_t2.Sample( LinearSampler, Input.Tex).rgb;
 
     float Blur = g_tDepth.Load(int3(Input.Pos.xy,0));
-    Blur = saturate(saturate(Blur - g_fDOFoffset) * g_iDOFmult);
+    float focal_depth = g_tDepth.Load(int3(int2(400,300),0));
+
+
+
+    Blur = saturate((abs(Blur-focal_depth)) * g_iDOFmult);
     //Blur = saturate(saturate(abs(Blur) - 0.99) * 100);
- 
+
     return float4(lerp( ColorOrg, ColorBlur, Blur ), 1.0f);
 }
 

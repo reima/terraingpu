@@ -361,6 +361,14 @@
 			>
 		</File>
 		<File
+			RelativePath=".\PostProcessing.cpp"
+			>
+		</File>
+		<File
+			RelativePath=".\PostProcessing.h"
+			>
+		</File>
+		<File
 			RelativePath=".\TerrainGPU.cpp"
 			>
 		</File>

@@ -17,6 +17,10 @@ Octree::Octree(INT base_x, INT base_y, INT base_z, UINT depth)
 }
 
 Octree::~Octree(void) {
+  if (block_) {
+    block_->Deactivate();
+    block_->set_used(false);
+  }
   for (UINT i = 0; i < 8; ++i) SAFE_DELETE(children_[i]);
 }
 
@@ -55,6 +59,8 @@ void Octree::Relocate(INT base_x, INT base_y, INT base_z) {
     children_[X_NEG_Y_NEG_Z_POS]->Relocate(x_,              y_,              z_ + child_size);
     children_[X_NEG_Y_NEG_Z_NEG]->Relocate(x_,              y_,              z_);
   } else {
+    block_->Deactivate();
+    block_->set_used(false);
     block_ = Block::GetBlockByID(BLOCK_ID(x_, y_, z_));
   }
 }
@@ -64,7 +70,8 @@ HRESULT Octree::ActivateBlocks(ID3D10Device *device) {
 
   if (block_) {
     block_->Activate();
-    is_empty_ = block_->IsEmpty();
+    block_->set_used(true);
+    is_empty_ = block_->empty();
   } else {
     is_empty_ = true;
     for (UINT i = 0; i < 8; ++i) {

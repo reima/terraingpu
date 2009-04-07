@@ -39,10 +39,12 @@ class Block {
   void Deactivate(void);
 
   void Draw(ID3D10Device *device, ID3D10EffectTechnique *technique);
-  bool IsEmpty(void) const { return primitive_count_ == 0; }
+  bool empty(void) const { return primitive_count_ == 0 || index_count_ == 0; }
 
   const BLOCK_ID &id(void) const { return id_; }
   bool active(void) const { return active_; }
+  bool used(void) const { return used_; }
+  void set_used(bool used) { used_ = used; }
   UINT primitive_count(void) const { return index_count_ / 3; }
 
   static HRESULT OnCreateDevice(ID3D10Device *device);
@@ -77,6 +79,7 @@ class Block {
   ~Block(void);
 
   HRESULT ActivateReal(ID3D10Device *device);
+  void DeactivateReal(void);
   void UpdateDistanceToCamera(void);
 
   // Generation steps
@@ -90,9 +93,10 @@ class Block {
   D3DXVECTOR3 position_;
   BLOCK_ID id_;
   INT primitive_count_;
-  UINT index_count_;
-  bool active_;
+  INT index_count_;
+  bool active_; // Are all buffers (vertex+index) created and filled with data?
   bool waiting_for_activation_;
+  bool used_; // Is this block referenced by the octree?
   float activation_time_;
   float distance_to_camera_; // ... at the time when Activate() was called
 
@@ -143,6 +147,8 @@ class Block {
     }
   };
 
-  typedef std::priority_queue<Block *, std::vector<Block *>, CameraDistGreater > BLOCK_QUEUE;
-  static BLOCK_QUEUE activation_queue_;
+  typedef std::priority_queue<Block *, std::vector<Block *>, CameraDistGreater > BLOCK_PQUEUE;
+  typedef std::queue<Block *> BLOCK_QUEUE;
+  static BLOCK_PQUEUE activation_queue_;
+  static BLOCK_QUEUE deactivation_queue_;
 };

@@ -41,7 +41,8 @@ ID3D10Query *Block::query_ = NULL;
 D3DXVECTOR3 Block::camera_pos_;
 
 Block::BLOCK_CACHE Block::cache_;
-Block::BLOCK_QUEUE Block::activation_queue_;
+Block::BLOCK_PQUEUE Block::activation_queue_;
+Block::BLOCK_QUEUE Block::deactivation_queue_;
 
 DWORD Block::vertex_buffers_total_size_ = 0;
 DWORD Block::index_buffers_total_size_ = 0;
@@ -61,9 +62,10 @@ Block::Block(const D3DXVECTOR3 &position)
       vertex_buffer_(NULL),
       index_buffer_(NULL),
       primitive_count_(-1),
-      index_count_(0),
+      index_count_(-1),
       active_(false),
       waiting_for_activation_(false),
+      used_(false),
       activation_time_(0.0),
       distance_to_camera_(0.0) {
   id_.x = static_cast<int>(position.x / kBlockSize);
@@ -76,9 +78,10 @@ Block::Block(const BLOCK_ID &id)
       vertex_buffer_(NULL),
       index_buffer_(NULL),
       primitive_count_(-1),
-      index_count_(0),
+      index_count_(-1),
       active_(false),
       waiting_for_activation_(false),
+      used_(false),
       activation_time_(0.0),
       distance_to_camera_(0.0) {
   position_.x = static_cast<FLOAT>(id.x) * kBlockSize;
@@ -87,7 +90,7 @@ Block::Block(const BLOCK_ID &id)
 }
 
 Block::~Block(void) {
-  Deactivate();
+  DeactivateReal();
 }
 
 void Block::Activate(void) {
@@ -99,7 +102,10 @@ void Block::Activate(void) {
 }
 
 void Block::Deactivate(void) {
-  waiting_for_activation_ = false;
+  deactivation_queue_.push(this);
+}
+
+void Block::DeactivateReal(void) {
   if (!active_) return;
   if (vertex_buffer_)
     vertex_buffers_total_size_ -= GetBufferSize(vertex_buffer_);
@@ -215,7 +221,10 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   InitQuery(device);
   device->DrawInstanced(kVoxelDim*kVoxelDim, kVoxelDim, 0, 0);
   UINT nonempty_cell_count = (UINT)GetQueryResult();
-  if (nonempty_cell_count == 0) goto done;
+  if (nonempty_cell_count == 0) {
+    primitive_count_ = index_count_ = 0;
+    goto done;
+  }
 
   //
   // List edges (pass 2)
@@ -232,7 +241,10 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   InitQuery(device);
   device->DrawAuto();
   primitive_count_ = (UINT)GetQueryResult();
-  if (primitive_count_ == 0) goto done; // TODO: Find out why this can happen at all
+  if (primitive_count_ == 0) { // TODO: Find out why this can happen at all
+    index_count_ = 0;
+    goto done;
+  }
 
   //
   // Create vertex buffer
@@ -253,7 +265,11 @@ HRESULT Block::GenerateTriangles(ID3D10Device *device) {
   //
   {
     D3D10_BUFFER_DESC buffer_desc;
-    buffer_desc.ByteWidth = sizeof(UINT) * 15*nonempty_cell_count; // Worst case size!
+    if (index_count_ > 0) {
+      buffer_desc.ByteWidth = sizeof(UINT) * index_count_; // Optimal size
+    } else {
+      buffer_desc.ByteWidth = sizeof(UINT) * 15*nonempty_cell_count; // Worst case size
+    }
     buffer_desc.Usage = D3D10_USAGE_DEFAULT;
     buffer_desc.BindFlags = D3D10_BIND_INDEX_BUFFER | D3D10_BIND_STREAM_OUTPUT;
     buffer_desc.CPUAccessFlags = 0;
@@ -334,7 +350,8 @@ done:
 }
 
 void Block::Draw(ID3D10Device *device, ID3D10EffectTechnique *technique) {
-  if (primitive_count_ <= 0) return;
+  if (empty()) return;
+  if (!active_) return;
 
   assert(vertex_buffer_ != NULL);
   assert(input_layout_ != NULL);
@@ -709,7 +726,7 @@ HRESULT Block::ActivateReal(ID3D10Device *device) {
   V_RETURN(RenderDensityVolume(device));
   V_RETURN(GenerateTriangles(device));
 
-  if (IsEmpty()) Deactivate();
+  if (empty()) DeactivateReal();
 
   active_ = true;
   waiting_for_activation_ = false;
@@ -720,6 +737,12 @@ HRESULT Block::ActivateReal(ID3D10Device *device) {
 }
 
 void Block::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &camera_pos) {
+  while (!deactivation_queue_.empty()) {
+    Block *block = deactivation_queue_.front();
+    if (!block->used_) block->DeactivateReal();
+    deactivation_queue_.pop();
+  }
+
   camera_pos_ = camera_pos;
   UINT count = 0;
   // TODO: some sort of adpative max_count
@@ -739,10 +762,12 @@ void Block::OnFrameMove(float elapsed_time, const D3DXVECTOR3 &camera_pos) {
 
   while (!activation_queue_.empty() && count < max_count) {
     Block *block = activation_queue_.top();
-    if (block->waiting_for_activation_) {
+    if (block->used_) {
       block->ActivateReal(DXUTGetD3D10Device());
       //if (block->primitive_count_ > 0)
       count++;
+    } else {
+      block->waiting_for_activation_ = false;
     }
     activation_queue_.pop();
   }

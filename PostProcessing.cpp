@@ -123,7 +123,6 @@ HRESULT PostProcessing::OnResizedSwapChain(const DXGI_SURFACE_DESC* pBackBufferS
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, & g_pDOFTex1 ) );
   V_RETURN( pd3dDevice->CreateRenderTargetView(  g_pDOFTex1, &DescRT, & g_pDOFTex1RTV ) );
   V_RETURN( pd3dDevice->CreateShaderResourceView(  g_pDOFTex1, &DescRV, & g_pDOFTex1RV ) );
-
  
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, & g_pDOFTex2 ) );
   V_RETURN( pd3dDevice->CreateRenderTargetView(  g_pDOFTex2, &DescRT, & g_pDOFTex2RTV ) );
@@ -157,6 +156,20 @@ HRESULT PostProcessing::OnResizedSwapChain(const DXGI_SURFACE_DESC* pBackBufferS
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBloom2 ) );
   V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBloom2, &DescRT, &g_pHDRBloom2RTV ) );
   V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBloom2, &DescRV, &g_pHDRBloom2RV ) );
+
+  Desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+  DescRT.Format = Desc.Format;
+  DescRV.Format = Desc.Format;
+  Desc.Width = 1;
+  Desc.Height = 1;  
+
+  V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pDOFDepth1 ) );
+  V_RETURN( pd3dDevice->CreateRenderTargetView( g_pDOFDepth1, &DescRT, &g_pDOFDepth1RTV ) );
+  V_RETURN( pd3dDevice->CreateShaderResourceView( g_pDOFDepth1, &DescRV, &g_pDOFDepth1RV ) );
+
+  V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pDOFDepth2 ) );
+  V_RETURN( pd3dDevice->CreateRenderTargetView( g_pDOFDepth2, &DescRT, &g_pDOFDepth2RTV ) );
+  V_RETURN( pd3dDevice->CreateShaderResourceView( g_pDOFDepth2, &DescRV, &g_pDOFDepth2RV ) );
 
   int nSampleLen = 1;
   for( int i = 0; i < NUM_TONEMAP_TEXTURES; i++ )
@@ -217,8 +230,7 @@ HRESULT PostProcessing::OnCreateDevice(ID3D10Effect *eff, ID3D10Device *dev, TwB
   g_pDOF_mult = g_pEffect->GetVariableByName("g_iDOFmult")->AsScalar();
   g_iDOF_mult = 100;
 
-
-   // DATA STRUCTURES
+  // DATA STRUCTURES
 
   SCREEN_VERTEX svQuad[4];
   svQuad[0].pos = D3DXVECTOR4( -1.0f, 1.0f, 0.5f, 1.0f );
@@ -296,7 +308,7 @@ HRESULT PostProcessing::UpdateShaderVariables()
 {
   g_pDOF_offset->SetFloat(g_fDOF_offset);
   g_pDOF_mult->SetInt(g_iDOF_mult);
-
+  
   return S_OK; 
 }
 
@@ -355,6 +367,29 @@ HRESULT PostProcessing::OnFrameRender(ID3D10RenderTargetView *rtv, const float C
     DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("DOF_BloomV"), descScreen.Width, descScreen.Height );
     
     g_pt1->SetResource(NULL);
+
+    //depth step
+    aRTViews[0] =  g_pDOFDepth2RTV;
+    pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
+    g_pt1->SetResource(g_pDOFDepth1RV);
+
+    DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("DOF_DepthStep"), 1, 1 );
+    
+    g_pt1->SetResource(NULL);
+
+    ID3D10Texture2D* textemp = g_pDOFDepth1;     
+    ID3D10ShaderResourceView* textempRV = g_pDOFDepth1RV;
+    ID3D10RenderTargetView* textempRTV = g_pDOFDepth1RTV;
+    
+    g_pDOFDepth1 = g_pDOFDepth2;     
+    g_pDOFDepth1RV = g_pDOFDepth2RV;
+    g_pDOFDepth1RTV = g_pDOFDepth2RTV;
+
+    g_pDOFDepth2 = textemp;     
+    g_pDOFDepth2RV = textempRV;
+    g_pDOFDepth2RTV = textempRTV;
+
+
     // DoF final
     g_pHDRTarget1->GetDesc( &descScreen );
     pd3dDevice->ClearRenderTargetView( g_pDOFTex1RTV, ClearColor );
@@ -363,16 +398,17 @@ HRESULT PostProcessing::OnFrameRender(ID3D10RenderTargetView *rtv, const float C
 
     g_pt1->SetResource(g_pHDRTarget0RV);
     g_pt2->SetResource(g_pDOFTex2RV);
+    g_pt3->SetResource(g_pDOFDepth1RV);
 
     DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("DOF_Final"), descScreen.Width, descScreen.Height );
 
-    
     g_pt1->SetResource(NULL);
     g_pt2->SetResource(NULL);
+    g_pt3->SetResource(NULL);
 
-    ID3D10Texture2D* textemp = g_pHDRTarget0;     
-    ID3D10ShaderResourceView* textempRV = g_pHDRTarget0RV;
-    ID3D10RenderTargetView* textempRTV = g_pHDRTarget0RTV;
+    textemp = g_pHDRTarget0;     
+    textempRV = g_pHDRTarget0RV;
+    textempRTV = g_pHDRTarget0RTV;
 
     g_pHDRTarget0 = g_pHDRTarget1;     
     g_pHDRTarget0RV = g_pHDRTarget1RV;
@@ -518,6 +554,14 @@ void PostProcessing::OnReleasingSwapChain()
   SAFE_RELEASE(g_pDSV);    
   SAFE_RELEASE(g_pDepthStencil);
   SAFE_RELEASE(g_pDepthStencilRV);
+  
+  SAFE_RELEASE(g_pDOFDepth1);    
+  SAFE_RELEASE(g_pDOFDepth1RV);
+  SAFE_RELEASE(g_pDOFDepth1RTV);
+
+  SAFE_RELEASE(g_pDOFDepth2);    
+  SAFE_RELEASE(g_pDOFDepth2RV);
+  SAFE_RELEASE(g_pDOFDepth2RTV);
 }
 
 void PostProcessing::OnDestroyDevice()
@@ -548,7 +592,6 @@ void PostProcessing::DrawFullscreenQuad( ID3D10Device* pd3dDevice, ID3D10EffectT
     vp.TopLeftX = 0;
     vp.TopLeftY = 0;
     pd3dDevice->RSSetViewports( 1, &vp );
-
 
     UINT strides = sizeof( SCREEN_VERTEX );
     UINT offsets = 0;

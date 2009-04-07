@@ -45,7 +45,6 @@ private:
   int   g_iDOF_mult;
   ID3D10EffectScalarVariable *g_pDOF_mult;
 
-
   ID3D10EffectShaderResourceVariable* g_tDepth;
   ID3D10EffectShaderResourceVariable* g_pt1;
   ID3D10EffectShaderResourceVariable* g_pt2;
@@ -99,4 +98,11 @@ private:
   ID3D10ShaderResourceView* g_pDOFTex2RV;
   ID3D10RenderTargetView* g_pDOFTex2RTV;
 
+  ID3D10Texture2D* g_pDOFDepth1;     
+  ID3D10ShaderResourceView* g_pDOFDepth1RV;
+  ID3D10RenderTargetView* g_pDOFDepth1RTV;
+
+  ID3D10Texture2D* g_pDOFDepth2;     
+  ID3D10ShaderResourceView* g_pDOFDepth2RV;
+  ID3D10RenderTargetView* g_pDOFDepth2RTV;
 };

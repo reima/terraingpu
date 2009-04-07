@@ -3,23 +3,18 @@ cbuffer pp_cb0
   float4x4 g_mWorldViewProj;
   float4x4 g_mWorldViewProjectionLastFrame; 
   float4x4 g_mViewInv;
-
- 
 }
+
 cbuffer pp_cb_settings
 {
   float g_fDOFoffset;
   int g_iDOFmult;
-
-
 }
 
 Texture2D g_tDepth;
 Texture2D p_t1;
 Texture2D p_t2;
 Texture2D p_t3;
-
-static float bla;
 
 static const float g_avSampleOffsets[15] = {
   0.0000,
@@ -293,29 +288,19 @@ float4 DOF_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
     return vSample / 1.2f;
 }
 
-struct GS_IN { float4 worldpos: POSITION;};
-
-// der do-nothing shader..
-[MaxVertexCount(10)]
-void DOF_GS(triangle QuadVS_Output input[3], inout TriangleStream <QuadVS_Output> stream)
-{ 
+float4 DOF_DepthStep_PS( QuadVS_Output Input ) : SV_TARGET
+{
   int x,y;
   g_tDepth.GetDimensions(x,y);
 
   float target_depth = LinearizeDepth(g_tDepth.Load(int3(int2(x/2,y/2),0)));
+  float curDepth = p_t1.Sample( PointSampler, float2(0,0));
+  
+  float bla = lerp(curDepth, target_depth, 0.1);
 
-  QuadVS_Output output[3] = input;
-
-  output[0].Pos.z = target_depth;
-  output[1].Pos.z = target_depth;
-  output[2].Pos.z = target_depth;
-
-
-  stream.Append(output[0]);
-  stream.Append(output[1]);
-  stream.Append(output[2]);
-  stream.RestartStrip();
+  return float4(bla,bla,bla,1);
 }
+
 
 float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
 {
@@ -323,12 +308,9 @@ float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
     float3 ColorBlur = p_t2.Sample( LinearSampler, Input.Tex).rgb;
 
     float Blur = LinearizeDepth(g_tDepth.Load(int3(Input.Pos.xy,0)));
-    //float focal_depth = LinearizeDepth(g_tDepth.Load(int3(int2(400,300),0)));
-    float focal_depth = Input.Pos.z;
-
+    float focal_depth = p_t3.Sample( PointSampler, float2(0,0) );
 
     Blur = saturate((abs(Blur-focal_depth)) * g_iDOFmult);
-    //Blur = saturate(saturate(abs(Blur) - 0.99) * 100);
 
     return float4(lerp( ColorOrg, ColorBlur, Blur ), 1.0f);
 }
@@ -483,12 +465,23 @@ technique10 DOF_BloomV
     }
 }
 
+technique10 DOF_DepthStep
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, DOF_DepthStep_PS() ) );
+    }
+}
+
 technique10 DOF_Final
 {
     pass p0
     {
         SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
-        SetGeometryShader( CompileShader( gs_4_0, DOF_GS() ) );
+        //SetGeometryShader( CompileShader( gs_4_0, DOF_GS() ) );
+        SetGeometryShader( NULL );
         SetPixelShader( CompileShader( ps_4_0, DOF_Final_PS() ) );
     }
 }

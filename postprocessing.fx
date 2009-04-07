@@ -3,6 +3,8 @@ cbuffer pp_cb0
   float4x4 g_mWorldViewProj;
   float4x4 g_mWorldViewProjectionLastFrame; 
   float4x4 g_mViewInv;
+
+ 
 }
 cbuffer pp_cb_settings
 {
@@ -16,6 +18,8 @@ Texture2D g_tDepth;
 Texture2D p_t1;
 Texture2D p_t2;
 Texture2D p_t3;
+
+static float bla;
 
 static const float g_avSampleOffsets[15] = {
   0.0000,
@@ -93,6 +97,15 @@ SamplerState LinearSampler
     AddressU = Clamp;
     AddressV = Clamp;
 };
+
+// FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS 
+
+float LinearizeDepth(float depth) {
+  const float far = 100.0;
+  const float near = 0.01;
+  const float q = far / near;
+  return depth / (q - (q-1)*depth);
+}
 
 // VERTEXT SHADER VERTEXT SHADER VERTEXT SHADER VERTEXT SHADER VERTEXT SHADER VERTEXT SHADER VERTEXT SHADER 
 
@@ -280,14 +293,38 @@ float4 DOF_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
     return vSample / 1.2f;
 }
 
+struct GS_IN { float4 worldpos: POSITION;};
+
+// der do-nothing shader..
+[MaxVertexCount(10)]
+void DOF_GS(triangle QuadVS_Output input[3], inout TriangleStream <QuadVS_Output> stream)
+{ 
+  int x,y;
+  g_tDepth.GetDimensions(x,y);
+
+  float target_depth = LinearizeDepth(g_tDepth.Load(int3(int2(x/2,y/2),0)));
+
+  QuadVS_Output output[3] = input;
+
+  output[0].Pos.z = target_depth;
+  output[1].Pos.z = target_depth;
+  output[2].Pos.z = target_depth;
+
+
+  stream.Append(output[0]);
+  stream.Append(output[1]);
+  stream.Append(output[2]);
+  stream.RestartStrip();
+}
+
 float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
 {
     float3 ColorOrg  = p_t1.Sample( PointSampler, Input.Tex).rgb;
     float3 ColorBlur = p_t2.Sample( LinearSampler, Input.Tex).rgb;
 
-    float Blur = g_tDepth.Load(int3(Input.Pos.xy,0));
-    float focal_depth = g_tDepth.Load(int3(int2(400,300),0));
-
+    float Blur = LinearizeDepth(g_tDepth.Load(int3(Input.Pos.xy,0)));
+    //float focal_depth = LinearizeDepth(g_tDepth.Load(int3(int2(400,300),0)));
+    float focal_depth = Input.Pos.z;
 
 
     Blur = saturate((abs(Blur-focal_depth)) * g_iDOFmult);
@@ -295,6 +332,8 @@ float4 DOF_Final_PS( QuadVS_Output Input ) : SV_TARGET
 
     return float4(lerp( ColorOrg, ColorBlur, Blur ), 1.0f);
 }
+
+
 
 float4 Motion_Blur_PS( QuadVS_Output Input ) : SV_TARGET
 {
@@ -449,7 +488,7 @@ technique10 DOF_Final
     pass p0
     {
         SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
-        SetGeometryShader( NULL );
+        SetGeometryShader( CompileShader( gs_4_0, DOF_GS() ) );
         SetPixelShader( CompileShader( ps_4_0, DOF_Final_PS() ) );
     }
 }

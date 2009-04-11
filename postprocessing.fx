@@ -246,7 +246,7 @@ float4 HDR_ToneMapFading_PS( QuadVS_Output Input ) : SV_TARGET
     float fCur = p_t1.Sample( PointSampler,int2(0,0) );
     fTarget /= 9;
 
-    float bla = lerp(fCur, fTarget, g_fHDRfadespeed * g_fElapsedTime);
+    float bla = lerp(fCur, fTarget, saturate(g_fHDRfadespeed * g_fElapsedTime));
 
 
     return float4(bla, bla, bla, 1.0f);
@@ -326,7 +326,7 @@ float4 DOF_DepthStep_PS( QuadVS_Output Input ) : SV_TARGET
   target_depth = min(0.4f, target_depth);
   float curDepth = p_t1.Sample( PointSampler, float2(0,0));
   
-  float bla = lerp(curDepth, target_depth, g_iDOFfadespeed * g_fElapsedTime);
+  float bla = lerp(curDepth, target_depth, saturate(g_iDOFfadespeed * g_fElapsedTime));
 
   return float4(bla,bla,bla,1);
 }

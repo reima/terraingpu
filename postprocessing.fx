@@ -375,7 +375,7 @@ float4 Motion_Blur_PS( QuadVS_Output Input ) : SV_TARGET
 
     // Use this frame's position and last frame's to compute the pixel  
     // velocity.  
-    float2 velocity = (currentPos.xy - previousPos.xy)/2.f;  
+    float2 velocity = (currentPos.xy - previousPos.xy) / (g_fElapsedTime * 50);  
 
     // Get the initial color at this pixel.  
     float4 color = p_t1.Sample( PointSampler, Input.Tex);

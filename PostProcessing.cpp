@@ -147,7 +147,6 @@ HRESULT PostProcessing::OnResizedSwapChain(const DXGI_SURFACE_DESC* pBackBufferS
   DescRV.Texture2D.MipLevels = 1;
   DescRV.Texture2D.MostDetailedMip = 0;
   V_RETURN( pd3dDevice->CreateShaderResourceView( g_pHDRBrightPass, &DescRV, &g_pHDRBrightPassRV ) );
-
   
   V_RETURN( pd3dDevice->CreateTexture2D( &Desc, NULL, &g_pHDRBloom ) );
   V_RETURN( pd3dDevice->CreateRenderTargetView( g_pHDRBloom, &DescRT, &g_pHDRBloomRTV ) );

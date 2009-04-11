@@ -202,6 +202,12 @@ HRESULT PostProcessing::OnResizedSwapChain(const DXGI_SURFACE_DESC* pBackBufferS
     DescRV.Texture2D.MostDetailedMip = 0;
     V_RETURN( pd3dDevice->CreateShaderResourceView( g_pToneMap[i], &DescRV, &g_pToneMapRV[i] ) );
 
+    if (i == 0) {
+      V_RETURN( pd3dDevice->CreateTexture2D( &tmdesc, NULL, &g_pToneMapFinal ) );
+      V_RETURN( pd3dDevice->CreateRenderTargetView( g_pToneMapFinal, &DescRT, &g_pToneMapFinalRTV ) );
+      V_RETURN( pd3dDevice->CreateShaderResourceView( g_pToneMapFinal, &DescRV, &g_pToneMapFinalRV ) );
+    }
+
     nSampleLen *= 3;
   }
 
@@ -218,6 +224,7 @@ HRESULT PostProcessing::OnCreateDevice(ID3D10Effect *eff, ID3D10Device *dev, TwB
 
   //  USER INTERFACE
   TwAddVarRW(bar, "HDR", TW_TYPE_BOOLCPP, &g_bHDRenabled, "Help='Enable HDR Bloom'");  
+      TwAddVarRW(bar, "HDR fadespeed", TW_TYPE_FLOAT, &g_fHDRfadespeed, "Help='HDR fadespeed' min=0.1 max=100"); 
   TwAddVarRW(bar, "DoF", TW_TYPE_BOOLCPP, &g_bDOFenabled, "Help='Enable Depth of Field'");  
     TwAddVarRW(bar, "DoF fadespeed", TW_TYPE_INT32, &g_iDOFfadespeed, "Help='Depth of Field fadespeed' min=1 max=100"); 
     TwAddVarRW(bar, "DoF multi", TW_TYPE_INT32, &g_iDOF_mult, "Help='Depth of Field' min=1 max=10000"); 
@@ -234,6 +241,8 @@ HRESULT PostProcessing::OnCreateDevice(ID3D10Effect *eff, ID3D10Device *dev, TwB
   g_pDOFfadespeed = g_pEffect->GetVariableByName("g_iDOFfadespeed")->AsScalar();
   g_iDOFfadespeed = 7;
 
+  g_pHDRfadespeed = g_pEffect->GetVariableByName("g_fHDRfadespeed")->AsScalar();
+  g_fHDRfadespeed = 0.5f;
   // DATA STRUCTURES
 
   SCREEN_VERTEX svQuad[4];
@@ -313,6 +322,7 @@ HRESULT PostProcessing::UpdateShaderVariables()
   g_pDOF_offset->SetFloat(g_fDOF_offset);
   g_pDOF_mult->SetInt(g_iDOF_mult);
   g_pDOFfadespeed->SetInt(g_iDOFfadespeed);
+  g_pHDRfadespeed->SetFloat(g_fHDRfadespeed);
   
   return S_OK; 
 }
@@ -446,7 +456,7 @@ HRESULT PostProcessing::OnFrameRender(ID3D10RenderTargetView *rtv, const float C
     DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("HDR_Luminosity"), descDest.Width, descDest.Height );
 
     //downsamplen 
-    for( int i = NUM_TONEMAP_TEXTURES - 1; i > 0; i-- )
+    for( int i = NUM_TONEMAP_TEXTURES - 1; i > 1; i-- )
     {
       pTexSrc = g_pToneMapRV[i];
       pTexDest = g_pToneMapRV[i - 1];
@@ -458,12 +468,39 @@ HRESULT PostProcessing::OnFrameRender(ID3D10RenderTargetView *rtv, const float C
       aRTViews[0] = pSurfDest;
       pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
 
-       g_pt2->SetResource( pTexSrc );
+      g_pt2->SetResource( pTexSrc );
 
       DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("HDR_3x3_Downsampling"), desc.Width / 3, desc.Height / 3 );
 
-       g_pt2->SetResource( NULL );
+      g_pt2->SetResource( NULL );
     }
+
+    //tonemapfade
+
+    aRTViews[0] = g_pToneMapFinalRTV;
+    pd3dDevice->OMSetRenderTargets( 1, aRTViews, NULL );
+
+    g_pt1->SetResource( g_pToneMapRV[0] );
+    g_pt2->SetResource( g_pToneMapRV[1] );
+
+    DrawFullscreenQuad( pd3dDevice, g_pEffect->GetTechniqueByName("HDR_ToneMapFading"), 1, 1);
+
+    g_pt1->SetResource( NULL );
+    g_pt2->SetResource( NULL );
+
+
+    ID3D10Texture2D* textemp = g_pToneMapFinal;     
+    ID3D10ShaderResourceView* textempRV = g_pToneMapFinalRV;
+    ID3D10RenderTargetView* textempRTV = g_pToneMapFinalRTV;
+    
+    g_pToneMapFinal = g_pToneMap[0];     
+    g_pToneMapFinalRV = g_pToneMapRV[0];
+    g_pToneMapFinalRTV = g_pToneMapRTV[0];
+
+    g_pToneMap[0] = textemp;     
+    g_pToneMapRV[0] = textempRV;
+    g_pToneMapRTV[0] = textempRTV;
+
 
     // bright pass filter
     aRTViews[0] = g_pHDRBrightPassRTV;
@@ -535,6 +572,10 @@ void PostProcessing::OnReleasingSwapChain()
     SAFE_RELEASE( g_pToneMapRV[i] );
     SAFE_RELEASE( g_pToneMapRTV[i] );
   }
+
+  SAFE_RELEASE( g_pToneMapFinal );
+  SAFE_RELEASE( g_pToneMapFinalRV );
+  SAFE_RELEASE( g_pToneMapFinalRTV );
 
   SAFE_RELEASE(g_pHDRBrightPass);   
   SAFE_RELEASE(g_pHDRBrightPassRV);

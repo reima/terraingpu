@@ -10,6 +10,7 @@ cbuffer pp_cb_settings
   float g_fDOFoffset;
   int g_iDOFmult;
   int g_iDOFfadespeed;
+  float g_fHDRfadespeed;
 }
 
 Texture2D g_tDepth;
@@ -53,9 +54,13 @@ static const float g_avSampleWeights[15] = {
 
 // settings
 static const float3 LUMINANCE_VECTOR  = float3(0.2125f, 0.7154f, 0.0721f);
+static const float  MIDDLE_GRAY = 0.52f;
+static const float  LUM_WHITE = 1.0f;
+static const float  BRIGHT_THRESHOLD = 0.8f;
+/*static const float3 LUMINANCE_VECTOR  = float3(0.2125f, 0.7154f, 0.0721f);
 static const float  MIDDLE_GRAY = 0.72f;
 static const float  LUM_WHITE = 1.5f;
-static const float  BRIGHT_THRESHOLD = 0.5f;
+static const float  BRIGHT_THRESHOLD = 0.5f;*/
 
 // STRUCTS STRUCTS STRUCTS STRUCTS STRUCTS STRUCTS STRUCTS STRUCTS STRUCTS STRUCTS STRUCTS
 
@@ -225,6 +230,28 @@ float4 HDR_BloomV_PS( QuadVS_Output Input ) : SV_TARGET
     return vSample;
 }
 
+float4 HDR_ToneMapFading_PS( QuadVS_Output Input ) : SV_TARGET
+{   
+    float fTarget = 0.0f; 
+    float4 vColor;
+    
+    [unroll] for( int y = -1; y <= 1; y++ )
+    {
+        [unroll] for( int x = -1; x <= 1; x++ )
+        {
+            vColor = p_t2.Sample( PointSampler, Input.Tex, int2(x,y) );
+            fTarget += vColor.r; 
+        }
+    }
+    float fCur = p_t1.Sample( PointSampler,int2(0,0) );
+    fTarget /= 9;
+
+    float bla = lerp(fCur, fTarget, g_fHDRfadespeed * g_fElapsedTime);
+
+
+    return float4(bla, bla, bla, 1.0f);
+}
+
 float4 HDR_FinalPass_PS( QuadVS_Output Input ) : SV_TARGET
 {   
   
@@ -348,24 +375,24 @@ float4 Motion_Blur_PS( QuadVS_Output Input ) : SV_TARGET
 
     // Use this frame's position and last frame's to compute the pixel  
     // velocity.  
-    float2 velocity = (currentPos - previousPos)/2.f;  
+    float2 velocity = (currentPos.xy - previousPos.xy)/2.f;  
 
     // Get the initial color at this pixel.  
     float4 color = p_t1.Sample( PointSampler, Input.Tex);
     float2 texCoord = velocity + Input.Tex; 
 
-    int g_numSamples = 3;
+    int numSamples = 3;
 
-    [unroll] for(int i = 1; i < g_numSamples; ++i, texCoord += velocity)  
+    [unroll] for(int i = 1; i < numSamples; ++i, texCoord += velocity)  
     {  
       // Sample the color buffer along the velocity vector.  
       float4 currentColor = p_t1.Sample(PointSamplerMirror, texCoord); 
 
       // Add the current color to our color sum.  
-      color += currentColor;  
+      color += currentColor / 2.f;  
     }  
     // Average all of the samples to get the final blur color.  
-    return color / g_numSamples;  
+    return color / 2 ;  
 }
 
 // TECHNIQUES TECHNIQUES TECHNIQUES TECHNIQUES TECHNIQUES TECHNIQUES TECHNIQUES TECHNIQUES TECHNIQUES 
@@ -421,6 +448,17 @@ technique10 HDR_BloomV
         SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
         SetGeometryShader( NULL );
         SetPixelShader( CompileShader( ps_4_0, HDR_BloomV_PS() ) );
+        SetDepthStencilState( dssDisableDepthStencil, 0 );
+    }
+}
+
+technique10 HDR_ToneMapFading
+{
+    pass p0
+    {
+        SetVertexShader( CompileShader( vs_4_0, QuadVS() ) );
+        SetGeometryShader( NULL );
+        SetPixelShader( CompileShader( ps_4_0, HDR_ToneMapFading_PS() ) );
         SetDepthStencilState( dssDisableDepthStencil, 0 );
     }
 }

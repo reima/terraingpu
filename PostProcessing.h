@@ -44,8 +44,11 @@ private:
   ID3D10EffectScalarVariable *g_pDOF_offset;
   int   g_iDOF_mult;
   ID3D10EffectScalarVariable *g_pDOF_mult;
+
   int   g_iDOFfadespeed;
   ID3D10EffectScalarVariable *g_pDOFfadespeed;
+  float g_fHDRfadespeed;
+  ID3D10EffectScalarVariable *g_pHDRfadespeed;
   
 
   ID3D10EffectShaderResourceVariable* g_tDepth;
@@ -75,7 +78,9 @@ private:
   ID3D10ShaderResourceView* g_pToneMapRV[NUM_TONEMAP_TEXTURES];
   ID3D10RenderTargetView* g_pToneMapRTV[NUM_TONEMAP_TEXTURES];
 
-
+  ID3D10Texture2D* g_pToneMapFinal;     
+  ID3D10ShaderResourceView* g_pToneMapFinalRV;
+  ID3D10RenderTargetView* g_pToneMapFinalRTV;
 
   ID3D10Texture2D* g_pHDRBrightPass;     
   ID3D10ShaderResourceView* g_pHDRBrightPassRV;

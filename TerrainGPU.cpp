@@ -60,12 +60,12 @@ bool CALLBACK IsD3D10DeviceAcceptable( UINT Adapter, UINT Output, D3D10_DRIVER_T
     return true;
 }
 
-
 //--------------------------------------------------------------------------------------
 // Called right before creating a D3D9 or D3D10 device, allowing the app to modify the device settings as needed
 //--------------------------------------------------------------------------------------
 bool CALLBACK ModifyDeviceSettings( DXUTDeviceSettings* pDeviceSettings, void* pUserContext )
 {
+  return true;
   pDeviceSettings->d3d10.SyncInterval = 0;
   return true;
 }
@@ -483,8 +483,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdL
 
     DXUTInit( true, true, NULL ); // Parse the command line, show msgboxes on error, no extra command line params
     DXUTSetCursorSettings( true, true ); // Show the cursor and clip it when in full screen
-    DXUTCreateWindow( L"TerrainGPU", NULL, NULL, NULL, 800, 600 );
     DXUTCreateDevice( true, 800, 600 );
+
     DXUTMainLoop(); // Enter into the DXUT render loop
 
     // Perform any application-level cleanup here
